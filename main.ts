@@ -1,308 +1,239 @@
-import { Notice, Plugin } from "obsidian";
-import ShortFormModal from "src/ShortFormModal";
-import ConfirmPublishModal from "./src/ConfirmPublishModal";
-import NostrService from "./src/service/NostrService";
 import {
-	NostrWriterPluginSettings,
-	NostrWriterSettingTab,
-} from "./src/settings";
-import { PublishedView, PUBLISHED_VIEW } from "./src/PublishedView";
-import { ReaderView, READER_VIEW } from "./src/ReaderView";
-import { HighlightsView, HIGHLIGHTS_VIEW } from "./src/HighlightsView";
+  BehaviorSubject,
+  filter,
+  ignoreElements,
+  lastValueFrom,
+  Observable,
+  of,
+  Subscription,
+  switchMap,
+} from "rxjs";
+import {
+  App,
+  Notice,
+  Plugin,
+  PluginManifest,
+  PluginSettingTab,
+} from "obsidian";
+import { onlyEvents, RelayPool } from "applesauce-relay";
+import { AccountManager } from "applesauce-accounts";
+import { registerCommonAccountTypes } from "applesauce-accounts/accounts";
+import { NostrConnectSigner } from "applesauce-signers/signers/nostr-connect-signer";
+import { EventStore, QueryStore } from "applesauce-core";
+import { EventFactory } from "applesauce-factory";
+import { ActionHub } from "applesauce-actions";
+import { Filter, kinds, nip19, NostrEvent } from "nostr-tools";
+
+import ConfirmPublishModal from "./src/components/ConfirmPublishModal";
+import { NostrWriterSettingTab } from "./src/views/SettingsView";
+import { PublishedView, PUBLISHED_VIEW } from "./src/views/PublishedView";
+import NostrPluginData, { TNostrPluginData } from "./src/schema/settings";
+import NostrLoaders from "./src/service/loaders";
+import { DEFAULT_FALLBACK_RELAYS } from "./src/const";
+import z from "zod";
 
 export default class NostrWriterPlugin extends Plugin {
-	nostrService: NostrService;
-	settings: NostrWriterPluginSettings;
-	private ribbonIconElShortForm: HTMLElement | null;
-	statusBar: any;
+  pool = new RelayPool();
+  accounts = new AccountManager<{ name: string }>();
 
-	async onload() {
-		await this.loadSettings();
-		this.updateStatusBar();
-		this.startupNostrService();
-		this.addSettingTab(new NostrWriterSettingTab(this.app, this));
-		this.updateRibbonIcon();
-		this.registerView(
-			PUBLISHED_VIEW,
-			(leaf) => new PublishedView(leaf, this),
-		);
+  events = new EventStore();
+  queries = new QueryStore(this.events);
 
-		this.registerView(
-			READER_VIEW,
-			(leaf) => new ReaderView(leaf, this, this.nostrService),
-		);
+  loaders = new NostrLoaders(this.pool, this.events);
 
-		this.registerView(
-			HIGHLIGHTS_VIEW,
-			(leaf) => new HighlightsView(leaf, this, this.nostrService),
-		);
+  factory = new EventFactory({ signer: this.accounts.signer });
+  actions = new ActionHub(this.events, this.factory);
 
-		// icon candidates : 'checkmark', 'blocks', 'scroll', 'pin'
-		this.addRibbonIcon("blocks", "See notes published to Nostr", () => {
-			this.togglePublishedView();
-		});
+  private cleanup: Subscription[] = [];
+  private data?: TNostrPluginData;
 
-		// icon candidates: 'bookmark', 'magnifying-glass', 'star-list', 'blocks', 'sheets-in-box'
-		this.addRibbonIcon("star-list", "See your Nostr Bookmarks", () => {
-			this.toggleReaderView();
-		});
+  fallbackRelays = new BehaviorSubject<string[]>(DEFAULT_FALLBACK_RELAYS);
+  lookupRelays = new BehaviorSubject<string[]>([]);
 
-		// icon candidates: "lines-of-text",'quote-glyph'
-		this.addRibbonIcon("lines-of-text", "See your Nostr Highlights", () => {
-			this.toggleHighlightsView();
-		});
+  /** Active users mailboxes */
+  mailboxes: Observable<{ inboxes: string[]; outboxes: string[] } | undefined>;
 
-		this.addRibbonIcon(
-			"file-up",
-			"Publish this note to Nostr",
-			async (evt: MouseEvent) => {
-				await this.checkAndPublish();
-			},
-		);
+  constructor(app: App, manifest: PluginManifest) {
+    super(app, manifest);
 
-		this.addCommand({
-			id: "publish-note-to-nostr",
-			name: "Publish",
-			callback: async () => {
-				await this.checkAndPublish();
-			},
-		});
+    // Setup account manager
+    registerCommonAccountTypes(this.accounts);
 
-		this.addCommand({
-			id: "test-print",
-			name: "Show connected relays",
-			callback: async () => {
-				for (let r of this.nostrService.connectedRelays) {
-					new Notice(`Connected to ${r.url}`);
-				}
-			},
-		});
+    // Setup default connection method
+    NostrConnectSigner.subscriptionMethod = (
+      filters: Filter[],
+      relays: string[],
+    ) => this.pool.req(relays, filters).pipe(onlyEvents());
 
-		this.addCommand({
-			id: "get-pub",
-			name: "See your public key",
-			callback: async () => {
-				let pubKey = this.nostrService.getPublicKey();
-				// TODO make this an npub
-				new Notice(`Public Key: ${pubKey}`);
-			},
-		});
+    // Setup default publish method
+    NostrConnectSigner.publishMethod = (event: NostrEvent, relays: string[]) =>
+      lastValueFrom(this.pool.event(relays, event).pipe(ignoreElements()));
 
-		this.addCommand({
-			id: "re-connect",
-			name: "Re-connect to relays",
-			callback: async () => {
-				this.nostrService.connectToRelays();
-				new Notice(`Attempting re-connect, see status bar.`);
-			},
-		});
+    // Setup computed values
+    this.mailboxes = this.accounts.active$.pipe(
+      switchMap((account) =>
+        account ? this.queries.mailboxes(account.pubkey) : of(undefined),
+      ),
+    );
+  }
 
-		this.addCommand({
-			id: "get-pub-clipboard",
-			name: "Copy public key to clipboard",
-			callback: async () => {
-				// TODO make this an npub
-				let pubKey = this.nostrService.getPublicKey();
-				navigator.clipboard
-					.writeText(pubKey)
-					.then(() => {
-						new Notice(`Public Key copied to clipboard: ${pubKey}`);
-					})
-					.catch((err) => {
-						new Notice(`Failed to copy Public Key: ${err}`);
-					});
-			},
-		});
-	}
+  async onload() {
+    // Load plugin settings
+    this.data = NostrPluginData.parse((await this.loadData()) ?? {});
 
-	togglePublishedView = async (): Promise<void> => {
-		const existing = this.app.workspace.getLeavesOfType(PUBLISHED_VIEW);
-		if (existing.length) {
-			this.app.workspace.revealLeaf(existing[0]);
-			return;
-		}
+    // load settings
+    this.lookupRelays.next(this.data.lookupRelays);
+    this.fallbackRelays.next(this.data.fallbackRelays);
 
-		await this.app.workspace.getRightLeaf(false)?.setViewState({
-			type: PUBLISHED_VIEW,
-			active: true,
-		});
+    // Load accounts
+    this.accounts.fromJSON(this.data.accounts);
 
-		this.app.workspace.revealLeaf(
-			this.app.workspace.getLeavesOfType(PUBLISHED_VIEW)[0],
-		);
-	};
+    // Start loaders
+    this.loaders.start();
 
-	toggleReaderView = async (): Promise<void> => {
-		const existing = this.app.workspace.getLeavesOfType(READER_VIEW);
-		if (existing.length) {
-			this.app.workspace.revealLeaf(existing[0]);
-			return;
-		}
+    // Start the plugin lifecycle
+    this.startLifecycle();
 
-		await this.app.workspace.getRightLeaf(false)?.setViewState({
-			type: READER_VIEW,
-			active: true,
-		});
+    this.addSettingTab(new NostrWriterSettingTab(this.app, this));
+    this.registerView(PUBLISHED_VIEW, (leaf) => new PublishedView(leaf, this));
 
-		this.app.workspace.revealLeaf(
-			this.app.workspace.getLeavesOfType(READER_VIEW)[0],
-		);
-	};
+    // icon candidates : 'checkmark', 'blocks', 'scroll', 'pin'
+    this.addRibbonIcon("blocks", "See notes published to Nostr", () => {
+      this.togglePublishedView();
+    });
 
-	toggleHighlightsView = async (): Promise<void> => {
-		const existing = this.app.workspace.getLeavesOfType(HIGHLIGHTS_VIEW);
-		if (existing.length) {
-			this.app.workspace.revealLeaf(existing[0]);
-			return;
-		}
+    this.addRibbonIcon(
+      "file-up",
+      "Publish this note to Nostr",
+      async (evt: MouseEvent) => {
+        await this.checkAndPublish();
+      },
+    );
 
-		await this.app.workspace.getRightLeaf(false)?.setViewState({
-			type: HIGHLIGHTS_VIEW,
-			active: true,
-		});
+    this.addCommand({
+      id: "publish-note-to-nostr",
+      name: "Publish",
+      callback: async () => {
+        await this.checkAndPublish();
+      },
+    });
 
-		this.app.workspace.revealLeaf(
-			this.app.workspace.getLeavesOfType(HIGHLIGHTS_VIEW)[0],
-		);
-	};
+    this.addCommand({
+      id: "test-print",
+      name: "Show connected relays",
+      callback: async () => {
+        for (let [url, relay] of this.pool.relays) {
+          if (relay.connected) new Notice(`Connected to ${relay.url}`);
+        }
+      },
+    });
 
-	onunload(): void {
-		this.nostrService.shutdownRelays();
-		this.app.workspace
-			.getLeavesOfType(PUBLISHED_VIEW)
-			.forEach((leaf) => leaf.detach());
-		this.app.workspace
-			.getLeavesOfType(READER_VIEW)
-			.forEach((leaf) => leaf.detach());
-		this.app.workspace
-			.getLeavesOfType(HIGHLIGHTS_VIEW)
-			.forEach((leaf) => leaf.detach());
-	}
+    this.addCommand({
+      id: "account-info",
+      name: "nostr account info",
+      callback: async () => {
+        if (!this.accounts.active) {
+          new Notice("No active account");
+        } else {
+          new Notice(
+            `Public Key: ${nip19.npubEncode(this.accounts.active?.pubkey)}`,
+          );
+        }
+      },
+    });
+  }
 
-	startupNostrService() {
-		this.nostrService = new NostrService(this, this.app, this.settings);
-	}
+  onunload(): void {
+    // Stop all subscriptions
+    for (const sub of this.cleanup) sub.unsubscribe();
+    this.cleanup = [];
 
-	async loadSettings() {
-		this.settings = Object.assign(
-			{},
-			{
-				privateKey: "",
-				shortFormEnabled: false,
-				statusBarEnabled: true,
-				relayConfigEnabled: false,
-				relayURLs: [
-					"wss://nos.lol",
-					"wss://relay.damus.io",
-					"wss://relay.nostr.band",
-					"wss://relayable.org",
-					"wss://nostr.rocks",
-					"wss://nostr.fmt.wiz.biz",
-				],
-				imageStorageProviders: ["www.nostr.build", "www.another.build"],
-				selectedImageStorageProvider: "www.nostr.build",
-				premiumStorageEnabled: false,
-				multipleProfilesEnabled: false,
-				profiles: [],
-			},
-			await this.loadData(),
-		);
-	}
+    // Stop loaders
+    this.loaders.stop();
 
-	async saveSettings() {
-		await this.saveData(this.settings);
-	}
+    this.app.workspace
+      .getLeavesOfType(PUBLISHED_VIEW)
+      .forEach((leaf) => leaf.detach());
+  }
 
-	isEmptyContent(content: string): boolean {
-		return content.trim() === "";
-	}
+  private startLifecycle() {
+    // Save account changes
+    this.cleanup.push(
+      this.accounts.accounts$.subscribe(() =>
+        this.updateData({ accounts: this.accounts.toJSON() }),
+      ),
+    );
 
-	async checkAndPublish() {
-		if (!this.settings.privateKey) {
-			new Notice(
-				`🔑 Please set your private key in the Nostr Writer Plugin settings before publishing.`,
-			);
-			return;
-		}
-		const activeFile = this.app.workspace.getActiveFile();
-		if (activeFile) {
-			const fileContent: string = await this.app.vault.read(activeFile);
-			if (this.isEmptyContent(fileContent)) {
-				new Notice("❌ The note is empty and cannot be published.");
-				return;
-			}
-			if (this.nostrService.getConnectionStatus()) {
-				new ConfirmPublishModal(
-					this.app,
-					this.nostrService,
-					activeFile,
-					this,
-				).open();
-			} else {
-				new Notice(`❗️ Please connect to Nostr before publishing.`);
-			}
-		} else {
-			new Notice("❗️ No note is currently active. Click into a note.");
-		}
-	}
+    // Save settings on changes
+    this.cleanup.push(
+      this.lookupRelays.subscribe((relays) =>
+        this.updateData({ lookupRelays: relays }),
+      ),
+    );
+    this.cleanup.push(
+      this.fallbackRelays.subscribe((relays) =>
+        this.updateData({ fallbackRelays: relays }),
+      ),
+    );
 
-	updateRibbonIcon() {
-		if (this.settings.shortFormEnabled) {
-			if (!this.ribbonIconElShortForm) {
-				this.ribbonIconElShortForm = this.addRibbonIcon(
-					"pencil",
-					"Write to Nostr (short form)",
-					(evt: MouseEvent) => {
-						if (!this.settings.privateKey) {
-							new Notice(
-								`🔑 Please set your private key in the Nostr Writer Plugin settings before publishing.`,
-							);
-							return;
-						}
-						if (this.nostrService.getConnectionStatus()) {
-							new ShortFormModal(
-								this.app,
-								this.nostrService,
-								this,
-							).open();
-							return;
-						} else {
-							new Notice(
-								`❗️ Please connect to Nostr before publishing.`,
-							);
-						}
-					},
-				);
-			}
-		} else if (this.ribbonIconElShortForm) {
-			this.ribbonIconElShortForm.remove();
-			this.ribbonIconElShortForm = null;
-		}
-	}
+    // Lookup profile events when account changes
+    this.cleanup.push(
+      this.accounts.active$.pipe(filter((a) => !!a)).subscribe((account) => {
+        this.loaders.replaceable.next({
+          pubkey: account.pubkey,
+          kind: kinds.Metadata,
+        });
+        this.loaders.replaceable.next({
+          pubkey: account.pubkey,
+          kind: kinds.Contacts,
+        });
+        this.loaders.replaceable.next({
+          pubkey: account.pubkey,
+          kind: kinds.RelayList,
+        });
+      }),
+    );
+  }
 
-	updateStatusBar() {
-		if (this.settings.statusBarEnabled) {
-			if (!this.statusBar) {
-				this.statusBar = this.addStatusBarItem();
-				this.statusBar.addClass("mod-clickable");
-				setAttributes(this.statusBar, {
-					"aria-label": "Re-connect to Nostr",
-					"aria-label-position": "top",
-				});
-				this.statusBar.addEventListener("click", () => {
-					this.nostrService.connectToRelays();
-					new Notice("⚡️ Re-connecting to Nostr..");
-				});
-			}
-		} else if (this.statusBar) {
-			this.statusBar.remove();
-			this.statusBar = null;
-		}
-	}
-}
+  private updateData(data: Partial<TNostrPluginData>) {
+    this.data = NostrPluginData.parse({ ...this.data, ...data });
+    this.saveData(this.data);
+  }
 
-export function setAttributes(element: any, attributes: any) {
-	for (let key in attributes) {
-		element.setAttribute(key, attributes[key]);
-	}
+  togglePublishedView = async (): Promise<void> => {
+    const existing = this.app.workspace.getLeavesOfType(PUBLISHED_VIEW);
+    if (existing.length) {
+      this.app.workspace.revealLeaf(existing[0]);
+      return;
+    }
+
+    await this.app.workspace.getRightLeaf(false)?.setViewState({
+      type: PUBLISHED_VIEW,
+      active: true,
+    });
+
+    this.app.workspace.revealLeaf(
+      this.app.workspace.getLeavesOfType(PUBLISHED_VIEW)[0],
+    );
+  };
+
+  async checkAndPublish() {
+    if (!this.accounts.active) {
+      new Notice(`🔑 Please add a nostr account first before publishing.`);
+      return;
+    }
+
+    const activeFile = this.app.workspace.getActiveFile();
+    if (activeFile) {
+      const fileContent = await this.app.vault.read(activeFile);
+      if (fileContent.length === 0) {
+        new Notice("❌ The note is empty and cannot be published.");
+        return;
+      }
+
+      new ConfirmPublishModal(this.app, this.pool, activeFile, this).open();
+    } else {
+      new Notice("❗️ No note is currently active. Click into a note.");
+    }
+  }
 }

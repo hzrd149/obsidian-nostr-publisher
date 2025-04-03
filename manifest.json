@@ -1,14 +1,10 @@
 {
-	"id": "nostr-writer",
-	"name": "Nostr Writer",
-	"version": "2.2.0",
-	"minAppVersion": "0.15.0",
-	"description": "Publish your writing directly to Nostr.",
-	"author": "jamesmagoo",
-	"authorUrl": "https://github.com/jamesmagoo",
-	"fundingUrl": {
-		"Buy Me a Coffee": "https://bmc.link/jamesmagoo",
-		"Github Sponsors": "https://github.com/sponsors/jamesmagoo"
-	},
-	"isDesktopOnly": true
+  "id": "nostr-articles",
+  "name": "Nostr Articles",
+  "version": "0.1.0",
+  "minAppVersion": "0.15.0",
+  "description": "Write nostr articles in Obsidian.",
+  "author": "hzrd149",
+  "authorUrl": "https://github.com/hzrd149",
+  "isDesktopOnly": true
 }
