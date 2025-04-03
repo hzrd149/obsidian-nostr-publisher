@@ -7,14 +7,9 @@ import {
   of,
   Subscription,
   switchMap,
+  toArray,
 } from "rxjs";
-import {
-  App,
-  Notice,
-  Plugin,
-  PluginManifest,
-  PluginSettingTab,
-} from "obsidian";
+import { App, Notice, Plugin, PluginManifest } from "obsidian";
 import { onlyEvents, RelayPool } from "applesauce-relay";
 import { AccountManager } from "applesauce-accounts";
 import { registerCommonAccountTypes } from "applesauce-accounts/accounts";
@@ -30,9 +25,9 @@ import { PublishedView, PUBLISHED_VIEW } from "./src/views/PublishedView";
 import NostrPluginData, { TNostrPluginData } from "./src/schema/settings";
 import NostrLoaders from "./src/service/loaders";
 import { DEFAULT_FALLBACK_RELAYS } from "./src/const";
-import z from "zod";
+import NostrConnectModal from "./src/components/NostrConnectModal";
 
-export default class NostrWriterPlugin extends Plugin {
+export default class NostrArticlesPlugin extends Plugin {
   pool = new RelayPool();
   accounts = new AccountManager<{ name: string }>();
 
@@ -66,8 +61,12 @@ export default class NostrWriterPlugin extends Plugin {
     ) => this.pool.req(relays, filters).pipe(onlyEvents());
 
     // Setup default publish method
-    NostrConnectSigner.publishMethod = (event: NostrEvent, relays: string[]) =>
-      lastValueFrom(this.pool.event(relays, event).pipe(ignoreElements()));
+    NostrConnectSigner.publishMethod = async (
+      event: NostrEvent,
+      relays: string[],
+    ) => {
+      lastValueFrom(this.pool.event(relays, event).pipe(toArray()));
+    };
 
     // Setup computed values
     this.mailboxes = this.accounts.active$.pipe(
@@ -126,6 +125,12 @@ export default class NostrWriterPlugin extends Plugin {
           if (relay.connected) new Notice(`Connected to ${relay.url}`);
         }
       },
+    });
+
+    this.addCommand({
+      id: "connect-nostr-account",
+      name: "Connect nostr account",
+      callback: () => this.connectAccount(),
     });
 
     this.addCommand({
@@ -193,6 +198,13 @@ export default class NostrWriterPlugin extends Plugin {
         });
       }),
     );
+
+    // Notify when mailboxes are loaded
+    this.cleanup.push(
+      this.mailboxes.subscribe((mailboxes) => {
+        if (mailboxes) new Notice(`Found ${mailboxes.inboxes.length} relays`);
+      }),
+    );
   }
 
   private updateData(data: Partial<TNostrPluginData>) {
@@ -235,5 +247,17 @@ export default class NostrWriterPlugin extends Plugin {
     } else {
       new Notice("❗️ No note is currently active. Click into a note.");
     }
+  }
+
+  connectAccount() {
+    return new Promise<void>((resolve) => {
+      new NostrConnectModal(this.app, (account) => {
+        this.accounts.addAccount(account);
+        this.accounts.setActive(account);
+
+        new Notice(`${account.metadata?.name} connected`);
+        resolve();
+      }).open();
+    });
   }
 }

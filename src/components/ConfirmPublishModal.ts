@@ -8,17 +8,17 @@ import {
   TextAreaComponent,
   TextComponent,
 } from "obsidian";
-import NostrWriterPlugin from "../../main";
+import NostrArticlesPlugin from "../../main";
 import { RelayPool } from "applesauce-relay";
 
 export default class ConfirmPublishModal extends Modal {
-  plugin: NostrWriterPlugin;
+  plugin: NostrArticlesPlugin;
 
   constructor(
     app: App,
     private pool: RelayPool,
     private file: TFile,
-    plugin: NostrWriterPlugin,
+    plugin: NostrArticlesPlugin,
   ) {
     super(app);
     this.plugin = plugin;

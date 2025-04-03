@@ -1,4 +1,4 @@
-import NostrWriterPlugin from "main";
+import NostrArticlesPlugin from "main";
 import {
   ButtonComponent,
   ItemView,
@@ -11,10 +11,10 @@ import { nip19 } from "nostr-tools";
 export const PUBLISHED_VIEW = "published-view";
 
 export class PublishedView extends ItemView {
-  plugin: NostrWriterPlugin;
+  plugin: NostrArticlesPlugin;
   private refreshDisplay: () => void;
 
-  constructor(leaf: WorkspaceLeaf, plugin: NostrWriterPlugin) {
+  constructor(leaf: WorkspaceLeaf, plugin: NostrArticlesPlugin) {
     super(leaf);
     this.plugin = plugin;
     this.refreshDisplay = () => this.onOpen();

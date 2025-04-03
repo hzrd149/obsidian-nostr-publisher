@@ -6,17 +6,18 @@ import {
   TextComponent,
 } from "obsidian";
 
-import NostrWriterPlugin from "../../main";
+import NostrArticlesPlugin from "../../main";
 
 import { isValidUrl } from "../helpers/url";
 import { normalizePrivateKey } from "../helpers/nip19";
 import { SimpleAccount } from "applesauce-accounts/accounts";
+import NostrConnectModal from "../components/NostrConnectModal";
 
 export class NostrWriterSettingTab extends PluginSettingTab {
-  plugin: NostrWriterPlugin;
+  plugin: NostrArticlesPlugin;
   private refreshDisplay: () => void;
 
-  constructor(app: App, plugin: NostrWriterPlugin) {
+  constructor(app: App, plugin: NostrArticlesPlugin) {
     super(app, plugin);
     this.plugin = plugin;
     this.refreshDisplay = () => this.display();
@@ -26,56 +27,18 @@ export class NostrWriterSettingTab extends PluginSettingTab {
     let { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl("h5", { text: "Nostr Accounts" });
     new Setting(this.containerEl)
-      .setDesc("Add a new Nostr account.")
-      .setName("Add Account")
-      .addText((newAccountNicknameInput) => {
-        newAccountNicknameInput.setPlaceholder("Account Nickname");
-        newAccountNicknameInput.onChange((value) => {
-          newProfileNicknameField = value;
-        });
-      })
-      .addText((newAccountNsecInput) => {
-        newAccountNsecInput.setPlaceholder("nsec");
-        newAccountNsecInput.onChange(async (value) => {
-          if (isValidPrivateKey(value)) {
-            newProfilePrivateKeyField = value;
-            new Notice("✅ Private key OK!");
-          } else {
-            new Notice("❌ Invalid private key", 5000);
-          }
-        });
-        multiplePrivateKeyField = newAccountNsecInput.inputEl;
-        multiplePrivateKeyField.type = "password";
-        multiplePrivateKeyField.style.width = "200px";
-      })
+      .setName("Connect account")
+      .setDesc("Connect a remote signer to start writing articles.")
       .addButton((btn) => {
-        btn.setIcon("plus");
+        btn.setButtonText("Connect");
         btn.setCta();
-        btn.setTooltip("Add this profile");
+        btn.setTooltip("Connect a new nostr account");
         btn.onClick(async () => {
-          if (newProfilePrivateKeyField && newProfileNicknameField) {
-            const account = SimpleAccount.fromKey<{ name: string }>(
-              normalizePrivateKey(newProfilePrivateKeyField),
-            );
-            account.metadata = { name: newProfileNicknameField };
-
-            this.plugin.accounts.addAccount(account);
-            if (!this.plugin.accounts.active)
-              this.plugin.accounts.setActive(account);
-
-            this.refreshDisplay();
-          } else {
-            new Notice("Add a profile nickname & a valid nsec");
-          }
+          await this.plugin.connectAccount();
+          this.refreshDisplay();
         });
       });
-
-    let newProfilePrivateKeyField: string;
-    let newProfileNicknameField: string;
-
-    let multiplePrivateKeyField: HTMLInputElement;
 
     for (const account of this.plugin.accounts.accounts) {
       new Setting(this.containerEl)

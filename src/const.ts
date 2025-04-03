@@ -12,6 +12,8 @@ export const DEFAULT_FALLBACK_RELAYS = [
 
 export const DEFAULT_LOOKUP_RELAYS = ["wss://purplepag.es"].map(normalizeURL);
 
+export const DEFAULT_CONNECT_RELAY = normalizeURL("wss://relay.nsec.app");
+
 export const NOSTR_CLIENT: EventFactoryClient = {
   name: "nsotr-writer",
 };

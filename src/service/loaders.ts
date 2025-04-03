@@ -23,7 +23,7 @@ export default class NostrLoaders {
 
   start() {
     this.cleanup.push(
-      merge<[NostrEvent, NostrEvent]>(this.replaceable, this.single).subscribe(
+      merge(this.replaceable.observable, this.single.observable).subscribe(
         (event) => this.events.add(event),
       ),
     );

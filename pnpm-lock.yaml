@@ -38,6 +38,9 @@ importers:
       nostr-tools:
         specifier: ^2.12.0
         version: 2.12.0(typescript@5.2.2)
+      qrcode-svg:
+        specifier: ^1.1.0
+        version: 1.1.0
       rxjs:
         specifier: ^7.8.2
         version: 7.8.2
@@ -51,6 +54,9 @@ importers:
       '@types/node':
         specifier: ^16.11.6
         version: 16.18.126
+      '@types/qrcode-svg':
+        specifier: ^1.1.5
+        version: 1.1.5
       '@types/react':
         specifier: ^18.2.17
         version: 18.3.20
@@ -297,6 +303,9 @@ packages:
 
   '@types/prop-types@15.7.14':
     resolution: {integrity: sha512-gNMvNH49DJ7OJYv+KAKn0Xp45p8PLl6zo2YnvDIbTd4J6MER2BmWN49TG7n9LvkyihINxeKW8+3bfS2yDC9dzQ==}
+
+  '@types/qrcode-svg@1.1.5':
+    resolution: {integrity: sha512-GjkD+HB8S1wrIsf3skHDtcYBjzNhTxocMbX+wG166xDkaVOnLiMUla7bLjbwxo6mMvqqWQNP0Dk8nkIeizSmnw==}
 
   '@types/react-dom@18.3.6':
     resolution: {integrity: sha512-nf22//wEbKXusP6E9pfOCDwFdHAX4u172eaJI4YkDRQEZiorm6KfYnSC2SWLDMVWUOWPERmJnN0ujeAfTBLvrw==}
@@ -612,6 +621,10 @@ packages:
   proxy-from-env@1.1.0:
     resolution: {integrity: sha512-D+zkORCbA9f1tdWRK0RaCR3GPv50cMxcrz4X8k5LTSUD1Dkw47mKJEZQNunItRTkWwgtaUSo1RVFRIG9ZXiFYg==}
 
+  qrcode-svg@1.1.0:
+    resolution: {integrity: sha512-XyQCIXux1zEIA3NPb0AeR8UMYvXZzWEhgdBgBjH9gO7M48H9uoHzviNz8pXw3UzrAcxRRRn9gxHewAVK7bn9qw==}
+    hasBin: true
+
   remark-parse@11.0.0:
     resolution: {integrity: sha512-FCxlKLNGknS5ba/1lmpYijMUzX2esxW5xQqjWxw2eHFfS2MSdaHVINFmhjo+qN1WhZhNimq0dZATN9pH0IDrpA==}
 
@@ -839,6 +852,8 @@ snapshots:
   '@types/node@16.18.126': {}
 
   '@types/prop-types@15.7.14': {}
+
+  '@types/qrcode-svg@1.1.5': {}
 
   '@types/react-dom@18.3.6(@types/react@18.3.20)':
     dependencies:
@@ -1326,6 +1341,8 @@ snapshots:
   prettier@3.5.3: {}
 
   proxy-from-env@1.1.0: {}
+
+  qrcode-svg@1.1.0: {}
 
   remark-parse@11.0.0:
     dependencies:
