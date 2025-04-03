@@ -3,7 +3,7 @@ import { NostrConnectSigner } from "applesauce-signers";
 import { NostrConnectAccount } from "applesauce-accounts/accounts";
 import QRCode from "qrcode-svg";
 
-import { DEFAULT_CONNECT_RELAY } from "../const";
+import { DEFAULT_CONNECT_RELAY } from "../const.js";
 
 export default class NostrConnectModal extends Modal {
   private signer?: NostrConnectSigner;

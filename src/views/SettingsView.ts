@@ -5,14 +5,10 @@ import {
   Setting,
   TextComponent,
 } from "obsidian";
-
-import NostrArticlesPlugin from "../../main";
-
-import { isValidUrl } from "../helpers/url";
-import { normalizePrivateKey } from "../helpers/nip19";
-import { SimpleAccount } from "applesauce-accounts/accounts";
-import NostrConnectModal from "../components/NostrConnectModal";
 import { nip19 } from "nostr-tools";
+
+import NostrArticlesPlugin from "../../main.js";
+import { isValidUrl } from "../helpers/url.js";
 
 export class NostrWriterSettingTab extends PluginSettingTab {
   plugin: NostrArticlesPlugin;

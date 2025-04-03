@@ -1,4 +1,4 @@
-import NostrArticlesPlugin from "main";
+import NostrArticlesPlugin from "../../main.js";
 import {
   ButtonComponent,
   ItemView,

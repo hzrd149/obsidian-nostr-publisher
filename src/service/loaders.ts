@@ -3,7 +3,7 @@ import {
   ReplaceableLoader,
   SingleEventLoader,
 } from "applesauce-loaders/loaders";
-import { Filter, NostrEvent } from "nostr-tools";
+import { Filter } from "nostr-tools";
 import { NostrRequest } from "applesauce-loaders";
 import { EventStore } from "applesauce-core";
 import { merge, Subscription } from "rxjs";

@@ -17,7 +17,7 @@ import {
 import { unixNow } from "applesauce-core/helpers";
 import { kinds } from "nostr-tools";
 
-import NostrArticlesPlugin from "../../main";
+import NostrArticlesPlugin from "../../main.js";
 
 export default class ConfirmPublishModal extends Modal {
   plugin: NostrArticlesPlugin;

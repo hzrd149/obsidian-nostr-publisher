@@ -1,7 +1,5 @@
 import {
   BehaviorSubject,
-  filter,
-  ignoreElements,
   lastValueFrom,
   Observable,
   of,
@@ -15,20 +13,19 @@ import { onlyEvents, RelayPool } from "applesauce-relay";
 import { AccountManager } from "applesauce-accounts";
 import { registerCommonAccountTypes } from "applesauce-accounts/accounts";
 import { NostrConnectSigner } from "applesauce-signers/signers/nostr-connect-signer";
+import { getDisplayName, getProfileContent } from "applesauce-core/helpers";
 import { EventStore, QueryStore } from "applesauce-core";
 import { EventFactory } from "applesauce-factory";
 import { ActionHub } from "applesauce-actions";
 import { Filter, kinds, nip19, NostrEvent } from "nostr-tools";
 
-import ConfirmPublishModal from "./src/components/PublishNewModal";
-import { NostrWriterSettingTab } from "./src/views/SettingsView";
-import { PublishedView, PUBLISHED_VIEW } from "./src/views/PublishedView";
-import NostrPluginData, { TNostrPluginData } from "./src/schema/plugin-data";
-import NostrLoaders from "./src/service/loaders";
-import { DEFAULT_FALLBACK_RELAYS } from "./src/const";
-import NostrConnectModal from "./src/components/NostrConnectModal";
-import { object } from "zod";
-import { getDisplayName, getProfileContent } from "applesauce-core/helpers";
+import ConfirmPublishModal from "./src/components/PublishNewModal.js";
+import { NostrWriterSettingTab } from "./src/views/SettingsView.js";
+import { PUBLISHED_VIEW } from "./src/views/PublishedView.js";
+import NostrPluginData, { TNostrPluginData } from "./src/schema/plugin-data.js";
+import NostrLoaders from "./src/service/loaders.js";
+import { DEFAULT_FALLBACK_RELAYS } from "./src/const.js";
+import NostrConnectModal from "./src/components/NostrConnectModal.js";
 
 export default class NostrArticlesPlugin extends Plugin {
   pool = new RelayPool();
