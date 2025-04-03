@@ -8,7 +8,7 @@ import {
 } from "./src/settings";
 import { PublishedView, PUBLISHED_VIEW } from "./src/PublishedView";
 import { ReaderView, READER_VIEW } from "./src/ReaderView";
-import { HighlightsView , HIGHLIGHTS_VIEW } from "./src/HighlightsView";
+import { HighlightsView, HIGHLIGHTS_VIEW } from "./src/HighlightsView";
 
 export default class NostrWriterPlugin extends Plugin {
 	nostrService: NostrService;
@@ -24,17 +24,17 @@ export default class NostrWriterPlugin extends Plugin {
 		this.updateRibbonIcon();
 		this.registerView(
 			PUBLISHED_VIEW,
-			(leaf) => new PublishedView(leaf, this)
+			(leaf) => new PublishedView(leaf, this),
 		);
 
 		this.registerView(
 			READER_VIEW,
-			(leaf) => new ReaderView(leaf, this, this.nostrService)
+			(leaf) => new ReaderView(leaf, this, this.nostrService),
 		);
 
 		this.registerView(
 			HIGHLIGHTS_VIEW,
-			(leaf) => new HighlightsView(leaf, this, this.nostrService)
+			(leaf) => new HighlightsView(leaf, this, this.nostrService),
 		);
 
 		// icon candidates : 'checkmark', 'blocks', 'scroll', 'pin'
@@ -57,7 +57,7 @@ export default class NostrWriterPlugin extends Plugin {
 			"Publish this note to Nostr",
 			async (evt: MouseEvent) => {
 				await this.checkAndPublish();
-			}
+			},
 		);
 
 		this.addCommand({
@@ -122,13 +122,13 @@ export default class NostrWriterPlugin extends Plugin {
 			return;
 		}
 
-		await this.app.workspace.getRightLeaf(false).setViewState({
+		await this.app.workspace.getRightLeaf(false)?.setViewState({
 			type: PUBLISHED_VIEW,
 			active: true,
 		});
 
 		this.app.workspace.revealLeaf(
-			this.app.workspace.getLeavesOfType(PUBLISHED_VIEW)[0]
+			this.app.workspace.getLeavesOfType(PUBLISHED_VIEW)[0],
 		);
 	};
 
@@ -139,13 +139,13 @@ export default class NostrWriterPlugin extends Plugin {
 			return;
 		}
 
-		await this.app.workspace.getRightLeaf(false).setViewState({
+		await this.app.workspace.getRightLeaf(false)?.setViewState({
 			type: READER_VIEW,
 			active: true,
 		});
 
 		this.app.workspace.revealLeaf(
-			this.app.workspace.getLeavesOfType(READER_VIEW)[0]
+			this.app.workspace.getLeavesOfType(READER_VIEW)[0],
 		);
 	};
 
@@ -156,16 +156,15 @@ export default class NostrWriterPlugin extends Plugin {
 			return;
 		}
 
-		await this.app.workspace.getRightLeaf(false).setViewState({
+		await this.app.workspace.getRightLeaf(false)?.setViewState({
 			type: HIGHLIGHTS_VIEW,
 			active: true,
 		});
 
 		this.app.workspace.revealLeaf(
-			this.app.workspace.getLeavesOfType(HIGHLIGHTS_VIEW)[0]
+			this.app.workspace.getLeavesOfType(HIGHLIGHTS_VIEW)[0],
 		);
 	};
-
 
 	onunload(): void {
 		this.nostrService.shutdownRelays();
@@ -200,16 +199,13 @@ export default class NostrWriterPlugin extends Plugin {
 					"wss://nostr.rocks",
 					"wss://nostr.fmt.wiz.biz",
 				],
-				imageStorageProviders : [
-					"www.nostr.build",
-					"www.another.build",
-				],
+				imageStorageProviders: ["www.nostr.build", "www.another.build"],
 				selectedImageStorageProvider: "www.nostr.build",
 				premiumStorageEnabled: false,
 				multipleProfilesEnabled: false,
 				profiles: [],
 			},
-			await this.loadData()
+			await this.loadData(),
 		);
 	}
 
@@ -224,7 +220,7 @@ export default class NostrWriterPlugin extends Plugin {
 	async checkAndPublish() {
 		if (!this.settings.privateKey) {
 			new Notice(
-				`🔑 Please set your private key in the Nostr Writer Plugin settings before publishing.`
+				`🔑 Please set your private key in the Nostr Writer Plugin settings before publishing.`,
 			);
 			return;
 		}
@@ -240,7 +236,7 @@ export default class NostrWriterPlugin extends Plugin {
 					this.app,
 					this.nostrService,
 					activeFile,
-					this
+					this,
 				).open();
 			} else {
 				new Notice(`❗️ Please connect to Nostr before publishing.`);
@@ -259,7 +255,7 @@ export default class NostrWriterPlugin extends Plugin {
 					(evt: MouseEvent) => {
 						if (!this.settings.privateKey) {
 							new Notice(
-								`🔑 Please set your private key in the Nostr Writer Plugin settings before publishing.`
+								`🔑 Please set your private key in the Nostr Writer Plugin settings before publishing.`,
 							);
 							return;
 						}
@@ -267,15 +263,15 @@ export default class NostrWriterPlugin extends Plugin {
 							new ShortFormModal(
 								this.app,
 								this.nostrService,
-								this
+								this,
 							).open();
 							return;
 						} else {
 							new Notice(
-								`❗️ Please connect to Nostr before publishing.`
+								`❗️ Please connect to Nostr before publishing.`,
 							);
 						}
-					}
+					},
 				);
 			}
 		} else if (this.ribbonIconElShortForm) {

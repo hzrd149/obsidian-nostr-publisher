@@ -3,7 +3,7 @@ import {
 	Notice,
 	PluginSettingTab,
 	Setting,
-	TextComponent
+	TextComponent,
 } from "obsidian";
 import NostrWriterPlugin from "../main";
 
@@ -73,11 +73,11 @@ export class NostrWriterSettingTab extends PluginSettingTab {
 					.onClick(() => {
 						if (privateKeyField) {
 							navigator.clipboard.writeText(
-								privateKeyField.value
+								privateKeyField.value,
 							);
 							new Notice("Private Key Copied - Be Careful 🔐");
 						}
-					})
+					}),
 			)
 			.addButton((button) =>
 				button
@@ -87,7 +87,7 @@ export class NostrWriterSettingTab extends PluginSettingTab {
 					.onClick(async () => {
 						if (
 							confirm(
-								"Are you sure you want to delete your private key? This cannot be undone."
+								"Are you sure you want to delete your private key? This cannot be undone.",
 							)
 						) {
 							this.plugin.settings.privateKey = "";
@@ -96,7 +96,7 @@ export class NostrWriterSettingTab extends PluginSettingTab {
 							this.plugin.startupNostrService();
 							new Notice("Private key deleted!🗑");
 						}
-					})
+					}),
 			);
 
 		new Setting(containerEl)
@@ -108,48 +108,48 @@ export class NostrWriterSettingTab extends PluginSettingTab {
 						// Set the type of the input field based on the value of the checkbox
 						privateKeyField.type = value ? "text" : "password";
 					}
-				})
+				}),
 			);
 
-//		new Setting(containerEl)
-//			.setName("Image Storage Provider")
-//			.setDesc(
-//				"Configure where you store images in your published work."
-//			)
-//				.addDropdown((dropdown) => {
-//					for (const  storageProvider of this.plugin.settings.imageStorageProviders) {
-//						dropdown.addOption(storageProvider, storageProvider);
-//					}
-//					dropdown.setValue(this.plugin.settings.selectedImageStorageProvider);
-//					dropdown.onChange(async (value) => {
-//						this.plugin.settings.selectedImageStorageProvider = value;
-//						new Notice(`🖼️ ${this.plugin.settings.selectedImageStorageProvider} selected`);
-//						await this.plugin.saveSettings();
-//						this.refreshDisplay();
-//					});
-//				});
+		//		new Setting(containerEl)
+		//			.setName("Image Storage Provider")
+		//			.setDesc(
+		//				"Configure where you store images in your published work."
+		//			)
+		//				.addDropdown((dropdown) => {
+		//					for (const  storageProvider of this.plugin.settings.imageStorageProviders) {
+		//						dropdown.addOption(storageProvider, storageProvider);
+		//					}
+		//					dropdown.setValue(this.plugin.settings.selectedImageStorageProvider);
+		//					dropdown.onChange(async (value) => {
+		//						this.plugin.settings.selectedImageStorageProvider = value;
+		//						new Notice(`🖼️ ${this.plugin.settings.selectedImageStorageProvider} selected`);
+		//						await this.plugin.saveSettings();
+		//						this.refreshDisplay();
+		//					});
+		//				});
 
 		new Setting(containerEl)
 			.setName("Premium Storage User")
 			.setDesc(
-				`Turn on if you have a premium account with nostr.build storage service.`
+				`Turn on if you have a premium account with nostr.build storage service.`,
 			)
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.premiumStorageEnabled)
 					.onChange(async (value) => {
 						this.plugin.settings.premiumStorageEnabled = value;
-						new Notice( `✅ Premium image user mode ${value ? "enabled" : "disabled"}`);
+						new Notice(
+							`✅ Premium image user mode ${value ? "enabled" : "disabled"}`,
+						);
 						await this.plugin.saveSettings();
 						this.refreshDisplay();
-					})
+					}),
 			);
 
 		new Setting(containerEl)
 			.setName("Enable multiple Nostr profiles")
-			.setDesc(
-				"Enable & add multiple Nostr profiles to publish from."
-			)
+			.setDesc("Enable & add multiple Nostr profiles to publish from.")
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.multipleProfilesEnabled)
@@ -157,7 +157,7 @@ export class NostrWriterSettingTab extends PluginSettingTab {
 						this.plugin.settings.multipleProfilesEnabled = value;
 						await this.plugin.saveSettings();
 						this.refreshDisplay();
-					})
+					}),
 			);
 
 		if (this.plugin.settings.multipleProfilesEnabled) {
@@ -176,10 +176,11 @@ export class NostrWriterSettingTab extends PluginSettingTab {
 						if (value.toLowerCase() !== "default") {
 							newProfileNicknameField = value;
 						} else {
-							new Notice("❌ Can't call an additional profile default");
+							new Notice(
+								"❌ Can't call an additional profile default",
+							);
 						}
 					});
-
 				})
 				.addText((newAccountNsecInput) => {
 					newAccountNsecInput.setPlaceholder("nsec");
@@ -214,13 +215,20 @@ export class NostrWriterSettingTab extends PluginSettingTab {
 							this.plugin.nostrService.reloadMultipleAccounts();
 						} else {
 							new Notice("Add a profile nickname & a valid nsec");
-							if (!this.isValidNickname(newProfileNicknameField)) {
-								new Notice("❌ Invalid nickname - already in use");
+							if (
+								!this.isValidNickname(newProfileNicknameField)
+							) {
+								new Notice(
+									"❌ Invalid nickname - already in use",
+								);
 							}
 						}
 					});
 				});
-			for (const [i, { profileNickname }] of this.plugin.settings.profiles.entries()) {
+			for (const [
+				i,
+				{ profileNickname },
+			] of this.plugin.settings.profiles.entries()) {
 				new Setting(this.containerEl)
 					.setName(`👤 - ${profileNickname}`)
 					.addButton((btn) => {
@@ -230,7 +238,7 @@ export class NostrWriterSettingTab extends PluginSettingTab {
 						btn.onClick(async () => {
 							if (
 								confirm(
-									"Are you sure you want to delete this profile? This cannot be undone."
+									"Are you sure you want to delete this profile? This cannot be undone.",
 								)
 							) {
 								this.plugin.settings.profiles.splice(i, 1);
@@ -256,13 +264,13 @@ export class NostrWriterSettingTab extends PluginSettingTab {
 					.onClick(async () => {
 						if (
 							confirm(
-								"Are you sure you want to delete your local history? This cannot be undone."
+								"Are you sure you want to delete your local history? This cannot be undone.",
 							)
 						) {
 							clearLocalPublishedFile();
 							new Notice("🗑️ Published History deleted!");
 						}
-					})
+					}),
 			);
 
 		new Setting(containerEl)
@@ -276,9 +284,9 @@ export class NostrWriterSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 						this.plugin.updateRibbonIcon();
 						new Notice(
-							`✅ Short form mode ${value ? "enabled" : "disabled"}`
+							`✅ Short form mode ${value ? "enabled" : "disabled"}`,
 						);
-					})
+					}),
 			);
 
 		new Setting(containerEl)
@@ -291,13 +299,13 @@ export class NostrWriterSettingTab extends PluginSettingTab {
 						this.plugin.settings.relayConfigEnabled = value;
 						await this.plugin.saveSettings();
 						this.refreshDisplay();
-					})
+					}),
 			);
 
 		new Setting(containerEl)
 			.setName("Reconnect to relays ")
 			.setDesc(
-				"Refresh connection to relays - check status bar for details."
+				"Refresh connection to relays - check status bar for details.",
 			)
 			.addButton((btn) => {
 				btn.setIcon("reset");
@@ -330,11 +338,11 @@ export class NostrWriterSettingTab extends PluginSettingTab {
 							let addedRelayUrl = this.relayUrlInput.getValue();
 							if (this.isValidUrl(addedRelayUrl)) {
 								this.plugin.settings.relayURLs.push(
-									addedRelayUrl
+									addedRelayUrl,
 								);
 								await this.plugin.saveSettings();
 								new Notice(
-									`Added ${addedRelayUrl} to relay configuration.`
+									`Added ${addedRelayUrl} to relay configuration.`,
 								);
 								new Notice(`Re-connecting to Nostr...`);
 								this.refreshDisplay();
@@ -351,16 +359,18 @@ export class NostrWriterSettingTab extends PluginSettingTab {
 			for (const [i, url] of this.plugin.settings.relayURLs.entries()) {
 				new Setting(this.containerEl)
 					.setDesc(
-						`${url} is ${this.plugin.nostrService.getRelayInfo(url)
-							? "connected"
-							: "disconnected"
-						}`
+						`${url} is ${
+							this.plugin.nostrService.getRelayInfo(url)
+								? "connected"
+								: "disconnected"
+						}`,
 					)
 					.setName(
-						`${this.plugin.nostrService.getRelayInfo(url)
-							? "🟢"
-							: "💀"
-						} - Relay ${i + 1} `
+						`${
+							this.plugin.nostrService.getRelayInfo(url)
+								? "🟢"
+								: "💀"
+						} - Relay ${i + 1} `,
 					)
 					.addButton((btn) => {
 						btn.setIcon("trash");
@@ -368,7 +378,7 @@ export class NostrWriterSettingTab extends PluginSettingTab {
 						btn.onClick(async () => {
 							if (
 								confirm(
-									"Are you sure you want to delete this relay? This cannot be undone."
+									"Are you sure you want to delete this relay? This cannot be undone.",
 								)
 							) {
 								this.plugin.settings.relayURLs.splice(i, 1);
@@ -386,7 +396,7 @@ export class NostrWriterSettingTab extends PluginSettingTab {
 		containerEl.createEl("h5", { text: "Support" });
 		new Setting(this.containerEl)
 			.setDesc(
-				"Has this plugin enhanced your workflow? Say thanks as a one-time payment and zap/buy me a coffee."
+				"Has this plugin enhanced your workflow? Say thanks as a one-time payment and zap/buy me a coffee.",
 			)
 			.addButton((bt) => {
 				bt.setTooltip("Copy 20k sats lightning invoice")
@@ -395,7 +405,7 @@ export class NostrWriterSettingTab extends PluginSettingTab {
 					.onClick(() => {
 						if (privateKeyField) {
 							navigator.clipboard.writeText(
-								"lnbc200u1pjvu03dpp5x20p0q5tdwylg5hsqw3av6qxufah0y64efldazmgad2rsffgda8qdpdfehhxarjypthy6t5v4ezqnmzwd5kg6tpdcs9qmr4va5kucqzzsxqyz5vqsp5w55p4tzawyfz5fasflmsvdfnnappd6hqnw9p7y2p0nl974f0mtkq9qyyssqq6gvpnvvuftqsdqyxzn9wrre3qfkpefzz6kqwssa3pz8l9mzczyq4u7qdc09jpatw9ekln9gh47vxrvx6zg6vlsqw7pq4a7kvj4ku4qpdrflwj"
+								"lnbc200u1pjvu03dpp5x20p0q5tdwylg5hsqw3av6qxufah0y64efldazmgad2rsffgda8qdpdfehhxarjypthy6t5v4ezqnmzwd5kg6tpdcs9qmr4va5kucqzzsxqyz5vqsp5w55p4tzawyfz5fasflmsvdfnnappd6hqnw9p7y2p0nl974f0mtkq9qyyssqq6gvpnvvuftqsdqyxzn9wrre3qfkpefzz6kqwssa3pz8l9mzczyq4u7qdc09jpatw9ekln9gh47vxrvx6zg6vlsqw7pq4a7kvj4ku4qpdrflwj",
 							);
 							new Notice("Lightning Invoice Address Copied!⚡️");
 							setTimeout(() => {
@@ -417,8 +427,8 @@ export class NostrWriterSettingTab extends PluginSettingTab {
 					.onClick(() =>
 						window.open(
 							"https://github.com/sponsors/jamesmagoo",
-							"_blank"
-						)
+							"_blank",
+						),
 					);
 				button.buttonEl.style.height = "35px";
 			})

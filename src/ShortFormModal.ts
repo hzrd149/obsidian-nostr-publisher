@@ -15,7 +15,7 @@ export default class ShortFormModal extends Modal {
 	constructor(
 		app: App,
 		private nostrService: NostrService,
-		plugin: NostrWriterPlugin
+		plugin: NostrWriterPlugin,
 	) {
 		super(app);
 		this.plugin = plugin;
@@ -35,37 +35,47 @@ export default class ShortFormModal extends Modal {
 			marginTop: "10px",
 			flex: "row",
 		});
-		
+
 		let selectedProfileKey = "default";
-		if(this.plugin.settings.profiles.length > 0 && this.plugin.settings.multipleProfilesEnabled){
+		if (
+			this.plugin.settings.profiles.length > 0 &&
+			this.plugin.settings.multipleProfilesEnabled
+		) {
 			new Setting(contentEl)
-			.setName("Select Profile")
-			.setDesc("Select a profile to send this note from.")
-			.addDropdown((dropdown) => {
-				dropdown.addOption("default", "Default");
-				for (const { profileNickname } of this.plugin.settings.profiles) {
-					dropdown.addOption(profileNickname, profileNickname);
-				}
-				dropdown.setValue("default");
-				dropdown.onChange(async (value) => {
-					selectedProfileKey = value;
-					new Notice(`${selectedProfileKey} selected`);
-					console.log(selectedProfileKey)
+				.setName("Select Profile")
+				.setDesc("Select a profile to send this note from.")
+				.addDropdown((dropdown) => {
+					dropdown.addOption("default", "Default");
+					for (const { profileNickname } of this.plugin.settings
+						.profiles) {
+						dropdown.addOption(profileNickname, profileNickname);
+					}
+					dropdown.setValue("default");
+					dropdown.onChange(async (value) => {
+						selectedProfileKey = value;
+						new Notice(`${selectedProfileKey} selected`);
+						console.log(selectedProfileKey);
+					});
 				});
-			});
 		}
 		contentEl.createEl("hr");
-		contentEl.createEl("p", {
-			text: `Are you sure you want to send this message to Nostr?`,
-		}).addClass("publish-modal-info");
+		contentEl
+			.createEl("p", {
+				text: `Are you sure you want to send this message to Nostr?`,
+			})
+			.addClass("publish-modal-info");
 
-		let publishButton = new ButtonComponent(contentEl)
-			publishButton
-			.setButtonText(this.plugin.settings.multipleProfilesEnabled ? `Confirm and Send with Selected Profile` : `Confirm and Send`)
+		let publishButton = new ButtonComponent(contentEl);
+		publishButton
+			.setButtonText(
+				this.plugin.settings.multipleProfilesEnabled
+					? `Confirm and Send with Selected Profile`
+					: `Confirm and Send`,
+			)
 			.setCta()
 			.onClick(async () => {
 				// Disable the button and change the text to show a loading state
-				if (summaryText.getValue().length > 1 ) {
+				if (summaryText.getValue().length > 1) {
 					publishButton.setButtonText("Sending...").setDisabled(true);
 					setTimeout(async () => {
 						const summary = summaryText.getValue();
@@ -73,12 +83,12 @@ export default class ShortFormModal extends Modal {
 							let res =
 								await this.nostrService.publishShortFormNote(
 									summary,
-									selectedProfileKey
+									selectedProfileKey,
 								);
 							if (res.success) {
 								setTimeout(() => {
 									new Notice(
-										`Successfully sent note to Nostr.`
+										`Successfully sent note to Nostr.`,
 									);
 								}, 500);
 								for (let relay of res.publishedRelays) {

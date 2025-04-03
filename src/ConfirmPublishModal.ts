@@ -12,14 +12,13 @@ import NostrService from "./service/NostrService";
 import NostrWriterPlugin from "../main";
 
 export default class ConfirmPublishModal extends Modal {
-
 	plugin: NostrWriterPlugin;
 
 	constructor(
 		app: App,
 		private nostrService: NostrService,
 		private file: TFile,
-		plugin: NostrWriterPlugin
+		plugin: NostrWriterPlugin,
 	) {
 		super(app);
 		this.plugin = plugin;
@@ -28,18 +27,22 @@ export default class ConfirmPublishModal extends Modal {
 	async onOpen() {
 		let { contentEl } = this;
 
-		const frontmatter = this.app.metadataCache.getFileCache(this.file)?.frontmatter;
+		const frontmatter = this.app.metadataCache.getFileCache(
+			this.file,
+		)?.frontmatter;
 
 		// TODO check out Progress Bar Component...
 
-		if(this.file.extension !== "md"){
-			new Notice("❌ Only markdown files can be published.")
-			this.close()
+		if (this.file.extension !== "md") {
+			new Notice("❌ Only markdown files can be published.");
+			this.close();
 			return;
 		}
 
 		const frontmatterRegex = /---\s*[\s\S]*?\s*---/g;
-		const content = (await this.app.vault.read(this.file)).replace(frontmatterRegex, "").trim();
+		const content = (await this.app.vault.read(this.file))
+			.replace(frontmatterRegex, "")
+			.trim();
 
 		const noteWordCount = content.split(" ").length;
 
@@ -54,7 +57,7 @@ export default class ConfirmPublishModal extends Modal {
 			summary: frontmatter?.summary || "",
 			image: isValidURL(frontmatter?.image) ? frontmatter?.image : "",
 			tags: frontmatter?.tags || hashtags,
-		}
+		};
 
 		for (const tag of properties.tags) {
 			noteCategoryTags.push(tag);
@@ -80,7 +83,7 @@ export default class ConfirmPublishModal extends Modal {
 		});
 
 		let tagsText = new TextComponent(contentEl).setPlaceholder(
-			`Add a tag here and press enter`
+			`Add a tag here and press enter`,
 		);
 
 		tagsText.inputEl.addEventListener("keydown", (event) => {
@@ -110,52 +113,66 @@ export default class ConfirmPublishModal extends Modal {
 
 		new Setting(contentEl)
 			.setName("Upload Banner Image")
-			.setDesc("Optional image to be shown alongside your articles title.")
+			.setDesc(
+				"Optional image to be shown alongside your articles title.",
+			)
 			.addButton((button) =>
 				button
 					.setButtonText("Upload")
 					.setIcon("upload")
 					.setTooltip("Upload an image file for your article banner.")
 					.onClick(async () => {
-						const input = document.createElement('input');
-						input.type = 'file';
+						const input = document.createElement("input");
+						input.type = "file";
 						input.multiple = false;
 
 						input.click();
 
-						input.addEventListener('change', async () => {
+						input.addEventListener("change", async () => {
 							if (input.files !== null) {
 								const file = input.files[0];
 								if (file) {
-									if (!file.type.startsWith('image/')) {
-										new Notice('❌ Invalid file type. Please upload an image.');
+									if (!file.type.startsWith("image/")) {
+										new Notice(
+											"❌ Invalid file type. Please upload an image.",
+										);
 										return;
 									}
 
 									let maxSizeInBytes = 10 * 1024 * 1024; // 10 MB
-									if (this.plugin.settings.premiumStorageEnabled) {
+									if (
+										this.plugin.settings
+											.premiumStorageEnabled
+									) {
 										maxSizeInBytes = 100 * 1024 * 1024;
 									}
 									if (file.size > maxSizeInBytes) {
-										new Notice('❌ File size exceeds the limit. Please upload a smaller image.');
+										new Notice(
+											"❌ File size exceeds the limit. Please upload a smaller image.",
+										);
 										return;
 									}
 									selectedBannerImage = file;
 
-									imagePreview.src = URL.createObjectURL(selectedBannerImage);
+									imagePreview.src =
+										URL.createObjectURL(
+											selectedBannerImage,
+										);
 									imagePreview.style.display = "block";
-									clearImageButton.style.display = "inline-block";
+									clearImageButton.style.display =
+										"inline-block";
 
-
-									imageNameDiv.textContent = selectedBannerImage.name;
-									new Notice(`✅ Selected image : ${file.name}`);
+									imageNameDiv.textContent =
+										selectedBannerImage.name;
+									new Notice(
+										`✅ Selected image : ${file.name}`,
+									);
 								}
 							} else {
 								new Notice(`❗️ No file selected.`);
 							}
 						});
-
-					})
+					}),
 			);
 
 		let imagePreview = contentEl.createEl("img");
@@ -192,7 +209,6 @@ export default class ConfirmPublishModal extends Modal {
 
 		clearImageButton.addEventListener("click", clearSelectedImage);
 
-
 		titleText.inputEl.setCssStyles({
 			width: "100%",
 			marginBottom: "10px",
@@ -211,13 +227,17 @@ export default class ConfirmPublishModal extends Modal {
 		tagsText.inputEl.addClass("features");
 
 		let selectedProfileKey = "default";
-		if (this.plugin.settings.profiles.length > 0 && this.plugin.settings.multipleProfilesEnabled) {
+		if (
+			this.plugin.settings.profiles.length > 0 &&
+			this.plugin.settings.multipleProfilesEnabled
+		) {
 			let x = new Setting(contentEl)
 				.setName("Select Profile")
 				.setDesc("Select a profile to send this note from.")
 				.addDropdown((dropdown) => {
 					dropdown.addOption("default", "Default");
-					for (const { profileNickname } of this.plugin.settings.profiles) {
+					for (const { profileNickname } of this.plugin.settings
+						.profiles) {
 						dropdown.addOption(profileNickname, profileNickname);
 					}
 					dropdown.setValue("default");
@@ -240,7 +260,7 @@ export default class ConfirmPublishModal extends Modal {
 					} else {
 						new Notice(`📜 Publishing as final.`);
 					}
-				})
+				}),
 			);
 
 		contentEl.createEl("hr");
@@ -254,9 +274,15 @@ export default class ConfirmPublishModal extends Modal {
 			.setButtonText("Confirm and Publish")
 			.setCta()
 			.onClick(async () => {
-				if (confirm(`Are you sure you want to publish this note ${publishAsDraft ? "as a draft" : "publically"} to Nostr?`)) {
+				if (
+					confirm(
+						`Are you sure you want to publish this note ${publishAsDraft ? "as a draft" : "publically"} to Nostr?`,
+					)
+				) {
 					// Disable the button and change the text to show a loading state
-					publishButton.setButtonText("Publishing...").setDisabled(true);
+					publishButton
+						.setButtonText("Publishing...")
+						.setDisabled(true);
 					setTimeout(async () => {
 						try {
 							const fileContent = content;
@@ -266,15 +292,19 @@ export default class ConfirmPublishModal extends Modal {
 								fileContent,
 								this.file,
 								summary,
-								selectedBannerImage && selectedBannerImage.path ? selectedBannerImage.path : null,
+								selectedBannerImage && selectedBannerImage.path
+									? selectedBannerImage.path
+									: null,
 								title,
 								noteCategoryTags,
 								selectedProfileKey,
-								publishAsDraft
+								publishAsDraft,
 							);
 							if (res.success) {
 								setTimeout(() => {
-									new Notice(`✅ Successfully sent note to Nostr.`);
+									new Notice(
+										`✅ Successfully sent note to Nostr.`,
+									);
 								}, 500);
 								for (let relay of res.publishedRelays) {
 									setTimeout(() => {

@@ -1,8 +1,14 @@
 import NostrWriterPlugin from "main";
 import NostrService from "./service/NostrService";
-import { ButtonComponent, ItemView, Notice, TFile, WorkspaceLeaf } from "obsidian";
+import {
+	ButtonComponent,
+	ItemView,
+	Notice,
+	TFile,
+	WorkspaceLeaf,
+} from "obsidian";
 import { nip19 } from "nostr-tools";
-import { parseReferences } from 'nostr-tools/references'
+import { parseReferences } from "nostr-tools/references";
 
 export const HIGHLIGHTS_VIEW = "highlights-view";
 
@@ -11,12 +17,15 @@ export class HighlightsView extends ItemView {
 	nostrService: NostrService;
 	refreshDisplay: () => void;
 
-
-	constructor(leaf: WorkspaceLeaf, plugin: NostrWriterPlugin, nostrService: NostrService) {
+	constructor(
+		leaf: WorkspaceLeaf,
+		plugin: NostrWriterPlugin,
+		nostrService: NostrService,
+	) {
 		super(leaf);
 		this.plugin = plugin;
 		this.nostrService = nostrService;
-		this.refreshDisplay = () => this.onOpen()
+		this.refreshDisplay = () => this.onOpen();
 	}
 
 	getViewType() {
@@ -43,17 +52,19 @@ export class HighlightsView extends ItemView {
 			.setCta()
 			.setTooltip("Refresh highlights")
 			.onClick(() => {
-				this.refreshDisplay()
-				new Notice("View refreshed")
+				this.refreshDisplay();
+				new Notice("View refreshed");
 			});
 
 		try {
 			let highlights = await this.nostrService.loadUserHighlights();
 			if (this.nostrService.connectedRelays.length === 0) {
-				new Notice("Re-connect to relays...")
+				new Notice("Re-connect to relays...");
 			}
 			if (highlights.length > 0) {
-				container.createEl("p", { text: `Total: ${highlights.length} ✅` });
+				container.createEl("p", {
+					text: `Total: ${highlights.length} ✅`,
+				});
 
 				highlights.reverse().forEach(async (highlight) => {
 					const cardDiv = container.createEl("div", {
@@ -64,7 +75,7 @@ export class HighlightsView extends ItemView {
 					});
 
 					// parse nostr tags, npubs wtc.
-					let references = parseReferences(highlight)
+					let references = parseReferences(highlight);
 					let linkedEvent = false;
 					let linkedEventURL = "";
 					let simpleAugmentedContent = highlight.content;
@@ -74,60 +85,89 @@ export class HighlightsView extends ItemView {
 
 						let augmentedReference;
 						if (profile) {
-							const taggedProfile = await this.nostrService.getUserProfile(profile.pubkey);
-							const { name } = JSON.parse(taggedProfile[0].content);
+							const taggedProfile =
+								await this.nostrService.getUserProfile(
+									profile.pubkey,
+								);
+							const { name } = JSON.parse(
+								taggedProfile[0].content,
+							);
 							augmentedReference = `<strong>@${name}</strong>`;
 						} else if (event) {
 							let linkedEventPointer: nip19.EventPointer = {
 								id: event.id,
-							}
+							};
 							let x = nip19.neventEncode(linkedEventPointer);
 							augmentedReference = "";
 							linkedEvent = true;
-							linkedEventURL = `https://njump.me/${x}`
+							linkedEventURL = `https://njump.me/${x}`;
 						} else if (address) {
 							augmentedReference = `<a href="${text}">Referenced Event</a>`;
 						} else {
 							augmentedReference = text;
 						}
-						simpleAugmentedContent = simpleAugmentedContent.replaceAll(text, augmentedReference);
+						simpleAugmentedContent =
+							simpleAugmentedContent.replaceAll(
+								text,
+								augmentedReference,
+							);
 					}
 
-					contentDiv.innerHTML = simpleAugmentedContent.replace(/\bhttps?:\/\/\S+/gi, "");
+					contentDiv.innerHTML = simpleAugmentedContent.replace(
+						/\bhttps?:\/\/\S+/gi,
+						"",
+					);
 
-					contentDiv.addEventListener("click", function() {
+					contentDiv.addEventListener("click", function () {
 						const textToCopy = contentDiv.textContent;
-						navigator.clipboard.writeText(textToCopy)
+						navigator.clipboard
+							.writeText(textToCopy)
 							.then(() => {
 								// Show tooltip
-								new Notice("📋 Copied to clipboard ✅.")
+								new Notice("📋 Copied to clipboard ✅.");
 							})
-							.catch(error => {
+							.catch((error) => {
 								console.error("Failed to copy text: ", error);
 							});
 					});
 
-					const authorTag = highlight.tags.find((tag: any[]) => tag[0] === "p");
+					const authorTag = highlight.tags.find(
+						(tag: any[]) => tag[0] === "p",
+					);
 
-					// TODO Need to get the highlight source article and display it with a link this is the "a" tag 
-					let sourceTag = highlight.tags.find((tag: any[]) => tag[0] === "a");
+					// TODO Need to get the highlight source article and display it with a link this is the "a" tag
+					let sourceTag = highlight.tags.find(
+						(tag: any[]) => tag[0] === "a",
+					);
 					if (sourceTag == undefined) {
 						// try the "e" tag
-						sourceTag = highlight.tags.find((tag: any[]) => tag[0] === "e");
+						sourceTag = highlight.tags.find(
+							(tag: any[]) => tag[0] === "e",
+						);
 					}
-					const externalSourceTag = highlight.tags.find((tag: any[]) => tag[0] === "r");
+					const externalSourceTag = highlight.tags.find(
+						(tag: any[]) => tag[0] === "r",
+					);
 					let highlightSource: any = null;
 					if (sourceTag !== undefined) {
-						highlightSource = await this.nostrService.getEventFromATag(sourceTag[1]);
+						highlightSource =
+							await this.nostrService.getEventFromATag(
+								sourceTag[1],
+							);
 					}
 
 					if (authorTag !== undefined) {
-						let highlightProfile = await this.nostrService.getUserProfile(authorTag[1]);
+						let highlightProfile =
+							await this.nostrService.getUserProfile(
+								authorTag[1],
+							);
 						let profileName = "";
 						let profilePicURL = "";
 
 						try {
-							const profileObject = JSON.parse(highlightProfile[0].content);
+							const profileObject = JSON.parse(
+								highlightProfile[0].content,
+							);
 							const { name, picture } = profileObject;
 							profileName = name;
 
@@ -143,12 +183,15 @@ export class HighlightsView extends ItemView {
 								profilePicURL = picture;
 							}
 						} catch (err) {
-							console.error("Problem Parsing Profile...setting defaults...", err)
+							console.error(
+								"Problem Parsing Profile...setting defaults...",
+								err,
+							);
 						}
 
 						if (sourceTag !== undefined) {
 							if (highlightSource !== null) {
-								let sourceTitle = "Unknown..."
+								let sourceTitle = "Unknown...";
 								for (const tag of highlightSource.tags) {
 									if (tag[0] === "title") {
 										sourceTitle = tag[1];
@@ -159,14 +202,17 @@ export class HighlightsView extends ItemView {
 								let target: nip19.EventPointer = {
 									id: highlightSource.id,
 									author: highlightSource.pubkey,
-								}
+								};
 
-								let nevent = nip19.neventEncode(target)
+								let nevent = nip19.neventEncode(target);
 								const url = `https://njump.me/${nevent}`;
 
-								const contentSourceDiv = cardDiv.createEl("div", {
-									cls: "highlight-content-source",
-								});
+								const contentSourceDiv = cardDiv.createEl(
+									"div",
+									{
+										cls: "highlight-content-source",
+									},
+								);
 								contentSourceDiv.createEl("img", {
 									attr: {
 										src: `${profilePicURL}`,
@@ -174,7 +220,9 @@ export class HighlightsView extends ItemView {
 									},
 									cls: "bookmark-profile-pic",
 								});
-								const displayName = profileName ? profileName : "Unknown";
+								const displayName = profileName
+									? profileName
+									: "Unknown";
 
 								contentSourceDiv.createEl("a", {
 									attr: {
@@ -185,9 +233,15 @@ export class HighlightsView extends ItemView {
 									cls: "source-article-link",
 								});
 
-								contentSourceDiv.createEl("span", { text: "  " });
-								contentSourceDiv.createEl("span", { text: " | " });
-								contentSourceDiv.createEl("span", { text: displayName });
+								contentSourceDiv.createEl("span", {
+									text: "  ",
+								});
+								contentSourceDiv.createEl("span", {
+									text: " | ",
+								});
+								contentSourceDiv.createEl("span", {
+									text: displayName,
+								});
 							}
 						}
 					} else {
@@ -206,7 +260,9 @@ export class HighlightsView extends ItemView {
 						}
 					}
 
-					const createdAt = new Date(highlight.created_at * 1000).toLocaleString();
+					const createdAt = new Date(
+						highlight.created_at * 1000,
+					).toLocaleString();
 					let bottomDiv = cardDiv.createEl("div", {
 						text: `Highlighted on: ${createdAt}`,
 						cls: "highlight-created-at",
@@ -223,36 +279,52 @@ export class HighlightsView extends ItemView {
 					}
 				});
 			} else {
-				const noBookmarksDiv = container.createEl("div", { cls: "nobookmarks-card" });
-				noBookmarksDiv.createEl("h6", { text: "No Highlights Found 📚" });
-				noBookmarksDiv.createEl("p", { text: "Use highlighter.com to read and highlight." });
-				const linkEl = noBookmarksDiv.createEl("a", { text: "highlighter.com" });
+				const noBookmarksDiv = container.createEl("div", {
+					cls: "nobookmarks-card",
+				});
+				noBookmarksDiv.createEl("h6", {
+					text: "No Highlights Found 📚",
+				});
+				noBookmarksDiv.createEl("p", {
+					text: "Use highlighter.com to read and highlight.",
+				});
+				const linkEl = noBookmarksDiv.createEl("a", {
+					text: "highlighter.com",
+				});
 				linkEl.href = "https://highlighter.com";
 				linkEl.target = "_blank";
-
 			}
 		} catch (err) {
 			console.error("Error reading highlights:", err);
-			new Notice("Problem reading highlights - re-connect & check you list.")
-			const noBookmarksDiv = container.createEl("div", { cls: "nobookmarks-card" });
+			new Notice(
+				"Problem reading highlights - re-connect & check you list.",
+			);
+			const noBookmarksDiv = container.createEl("div", {
+				cls: "nobookmarks-card",
+			});
 			noBookmarksDiv.createEl("h6", { text: "No Highlights Found 📚" });
-			noBookmarksDiv.createEl("p", { text: "Use highlighter.com to read and highlight." });
-			const linkEl = noBookmarksDiv.createEl("a", { text: "highlighter.com" });
+			noBookmarksDiv.createEl("p", {
+				text: "Use highlighter.com to read and highlight.",
+			});
+			const linkEl = noBookmarksDiv.createEl("a", {
+				text: "highlighter.com",
+			});
 			linkEl.href = "https://highlighter.com";
 			linkEl.target = "_blank";
 		}
 	}
 
 	openLink(url: string) {
-		console.log(url)
-		window.open(url, '_blank');
+		console.log(url);
+		window.open(url, "_blank");
 	}
-
 
 	async downloadBookmark(bookmark: any) {
 		try {
 			let filename: string;
-			const titleTag = bookmark.tags.find((tag: any[]) => tag[0] === "title");
+			const titleTag = bookmark.tags.find(
+				(tag: any[]) => tag[0] === "title",
+			);
 			if (titleTag) {
 				filename = `${titleTag[1]}.md`;
 			} else {
@@ -260,10 +332,17 @@ export class HighlightsView extends ItemView {
 			}
 			const content = this.generateMarkdownContent(bookmark);
 
-			const file: TFile | null = await this.createMarkdownFile(filename, content);
+			const file: TFile | null = await this.createMarkdownFile(
+				filename,
+				content,
+			);
 
 			if (file !== null) {
-				await this.app.workspace.openLinkText(filename, file.path, true);
+				await this.app.workspace.openLinkText(
+					filename,
+					file.path,
+					true,
+				);
 			} else {
 				new Notice("Failed to create file. File may already exist.");
 			}
@@ -273,8 +352,10 @@ export class HighlightsView extends ItemView {
 		}
 	}
 
-
-	async createMarkdownFile(filename: string, content: string): Promise<TFile | null> {
+	async createMarkdownFile(
+		filename: string,
+		content: string,
+	): Promise<TFile | null> {
 		try {
 			const file = this.app.vault.create(filename, content);
 			return file;
@@ -288,14 +369,12 @@ export class HighlightsView extends ItemView {
 		}
 	}
 
-
-
 	generateMarkdownContent(bookmark: any): string {
 		const createdAt = new Date(bookmark.created_at * 1000).toLocaleString();
 
 		let source: nip19.ProfilePointer = {
 			pubkey: bookmark.pubkey,
-		}
+		};
 		let y = nip19.nprofileEncode(source);
 		const url = `https://njump.me/${y}`;
 		const markdownContent = `
@@ -313,7 +392,6 @@ ${bookmark.content}
 		return markdownContent;
 	}
 
-
 	extractImageUrls(content: string): string[] {
 		const urlRegex = /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif))/gi;
 		const urls: string[] = [];
@@ -324,23 +402,17 @@ ${bookmark.content}
 		return urls;
 	}
 
-
-
 	focusFile = (path: string, shouldSplit = false): void => {
-		const targetFile = this.app.vault
-			.getAbstractFileByPath(path)
+		const targetFile = this.app.vault.getAbstractFileByPath(path);
 		if (targetFile && targetFile instanceof TFile) {
 			let leaf = this.app.workspace.getLeaf();
 			const createLeaf = shouldSplit || leaf?.getViewState().pinned;
 			if (createLeaf) {
-				leaf = this.app.workspace.getLeaf('tab');
+				leaf = this.app.workspace.getLeaf("tab");
 			}
 			leaf?.openFile(targetFile);
 		} else {
-			new Notice('Cannot find a file with that name');
+			new Notice("Cannot find a file with that name");
 		}
 	};
-
 }
-
-

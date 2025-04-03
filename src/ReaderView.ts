@@ -1,8 +1,14 @@
 import NostrWriterPlugin from "main";
 import NostrService from "./service/NostrService";
-import { ButtonComponent, ItemView, Notice, TFile, WorkspaceLeaf } from "obsidian";
+import {
+	ButtonComponent,
+	ItemView,
+	Notice,
+	TFile,
+	WorkspaceLeaf,
+} from "obsidian";
 import { nip19 } from "nostr-tools";
-import { parseReferences } from 'nostr-tools/references'
+import { parseReferences } from "nostr-tools/references";
 
 export const READER_VIEW = "reader-view";
 
@@ -11,12 +17,15 @@ export class ReaderView extends ItemView {
 	nostrService: NostrService;
 	refreshDisplay: () => void;
 
-
-	constructor(leaf: WorkspaceLeaf, plugin: NostrWriterPlugin, nostrService: NostrService) {
+	constructor(
+		leaf: WorkspaceLeaf,
+		plugin: NostrWriterPlugin,
+		nostrService: NostrService,
+	) {
 		super(leaf);
 		this.plugin = plugin;
 		this.nostrService = nostrService;
-		this.refreshDisplay = () => this.onOpen()
+		this.refreshDisplay = () => this.onOpen();
 	}
 
 	getViewType() {
@@ -43,25 +52,30 @@ export class ReaderView extends ItemView {
 			.setCta()
 			.setTooltip("Refresh bookmarks")
 			.onClick(() => {
-				this.refreshDisplay()
-				new Notice("View refreshed")
+				this.refreshDisplay();
+				new Notice("View refreshed");
 			});
 
 		try {
 			let bookmarks = await this.nostrService.loadUserBookmarks();
 			if (this.nostrService.connectedRelays.length === 0) {
-				new Notice("Re-connect to relays...")
+				new Notice("Re-connect to relays...");
 			}
 			if (bookmarks.length > 0) {
-				container.createEl("p", { text: `Total: ${bookmarks.length} ✅` });
+				container.createEl("p", {
+					text: `Total: ${bookmarks.length} ✅`,
+				});
 
 				bookmarks.reverse().forEach(async (bookmark) => {
-					let bookmarkProfile = await this.nostrService.getUserProfile(bookmark.pubkey);
+					let bookmarkProfile =
+						await this.nostrService.getUserProfile(bookmark.pubkey);
 					let profileName = "";
 					let profilePicURL = "";
 
 					try {
-						const profileObject = JSON.parse(bookmarkProfile[0].content);
+						const profileObject = JSON.parse(
+							bookmarkProfile[0].content,
+						);
 						const { name, picture } = profileObject;
 						profileName = name;
 
@@ -77,14 +91,19 @@ export class ReaderView extends ItemView {
 							profilePicURL = picture;
 						}
 					} catch (err) {
-						console.error("Problem Parsing Profile...setting defaults...", err)
+						console.error(
+							"Problem Parsing Profile...setting defaults...",
+							err,
+						);
 					}
 
 					const cardDiv = container.createEl("div", {
 						cls: "bookmark-card",
 					});
 					if (bookmark.kind === 30023) {
-						const titleTag = bookmark.tags.find((tag: any[]) => tag[0] === "title");
+						const titleTag = bookmark.tags.find(
+							(tag: any[]) => tag[0] === "title",
+						);
 						if (titleTag) {
 							const title = titleTag[1];
 							cardDiv.createEl("h3", { text: title });
@@ -96,7 +115,7 @@ export class ReaderView extends ItemView {
 					});
 
 					// parse nostr tags, npubs wtc.
-					let references = parseReferences(bookmark)
+					let references = parseReferences(bookmark);
 					let linkedEvent = false;
 					let linkedEventURL = "";
 					let simpleAugmentedContent = bookmark.content;
@@ -106,43 +125,63 @@ export class ReaderView extends ItemView {
 
 						let augmentedReference;
 						if (profile) {
-							const taggedProfile = await this.nostrService.getUserProfile(profile.pubkey);
-							const { name } = JSON.parse(taggedProfile[0].content);
+							const taggedProfile =
+								await this.nostrService.getUserProfile(
+									profile.pubkey,
+								);
+							const { name } = JSON.parse(
+								taggedProfile[0].content,
+							);
 							augmentedReference = `<strong>@${name}</strong>`;
 						} else if (event) {
 							let linkedEventPointer: nip19.EventPointer = {
 								id: event.id,
-							}
+							};
 							let x = nip19.neventEncode(linkedEventPointer);
 							//augmentedReference = `<a href="https://njump.me/${x}" target="_blank">Referenced Event</a>`;
 							augmentedReference = "";
 							linkedEvent = true;
-							linkedEventURL = `https://njump.me/${x}`
+							linkedEventURL = `https://njump.me/${x}`;
 						} else if (address) {
 							augmentedReference = `<a href="${text}">Referenced Event</a>`;
 						} else {
 							augmentedReference = text;
 						}
-						simpleAugmentedContent = simpleAugmentedContent.replaceAll(text, augmentedReference);
+						simpleAugmentedContent =
+							simpleAugmentedContent.replaceAll(
+								text,
+								augmentedReference,
+							);
 					}
 
 					if (bookmark.kind === 30023) {
-						const summaryTag = bookmark.tags.find((tag: any[]) => tag[0] === "summary");
+						const summaryTag = bookmark.tags.find(
+							(tag: any[]) => tag[0] === "summary",
+						);
 						if (summaryTag) {
 							const summary = summaryTag[1];
 							simpleAugmentedContent = `<em>${summary}</em>`;
-
 						} else {
-							const firstLineIndex = simpleAugmentedContent.indexOf('\n');
+							const firstLineIndex =
+								simpleAugmentedContent.indexOf("\n");
 							if (firstLineIndex !== -1) {
-								simpleAugmentedContent = simpleAugmentedContent.substring(0, firstLineIndex);
+								simpleAugmentedContent =
+									simpleAugmentedContent.substring(
+										0,
+										firstLineIndex,
+									);
 							} else {
-								simpleAugmentedContent = simpleAugmentedContent.substring(0, 140) + '...'
+								simpleAugmentedContent =
+									simpleAugmentedContent.substring(0, 140) +
+									"...";
 							}
 						}
 					}
 
-					contentDiv.innerHTML = simpleAugmentedContent.replace(/\bhttps?:\/\/\S+/gi, "");
+					contentDiv.innerHTML = simpleAugmentedContent.replace(
+						/\bhttps?:\/\/\S+/gi,
+						"",
+					);
 
 					const imageUrls = this.extractImageUrls(bookmark.content);
 
@@ -155,8 +194,9 @@ export class ReaderView extends ItemView {
 						});
 					});
 
-
-					const imageTag = bookmark.tags.find((tag: any[]) => tag[0] === "image");
+					const imageTag = bookmark.tags.find(
+						(tag: any[]) => tag[0] === "image",
+					);
 					if (imageTag) {
 						const imageURL = imageTag[1];
 						cardDiv.createEl("img", {
@@ -166,7 +206,6 @@ export class ReaderView extends ItemView {
 							cls: "bookmark-image",
 						});
 					}
-
 
 					const publicKeyDiv = cardDiv.createEl("div", {
 						cls: "bookmark-pubkey",
@@ -182,7 +221,9 @@ export class ReaderView extends ItemView {
 
 					publicKeyDiv.createEl("span", { text: displayName });
 
-					const createdAt = new Date(bookmark.created_at * 1000).toLocaleString();
+					const createdAt = new Date(
+						bookmark.created_at * 1000,
+					).toLocaleString();
 					cardDiv.createEl("div", {
 						text: `Bookmarked On: ${createdAt}`,
 						cls: "bookmark-created-at",
@@ -195,9 +236,9 @@ export class ReaderView extends ItemView {
 					let target: nip19.EventPointer = {
 						id: bookmark.id,
 						author: bookmark.pubkey,
-					}
+					};
 
-					let nevent = nip19.neventEncode(target)
+					let nevent = nip19.neventEncode(target);
 
 					new ButtonComponent(detailsDiv)
 						.setIcon("popup-open")
@@ -205,7 +246,7 @@ export class ReaderView extends ItemView {
 						.setTooltip("View Online")
 						.onClick(() => {
 							const url = `https://njump.me/${nevent}`;
-							window.open(url, '_blank');
+							window.open(url, "_blank");
 						});
 
 					new ButtonComponent(detailsDiv)
@@ -223,26 +264,38 @@ export class ReaderView extends ItemView {
 							.setCta()
 							.setTooltip("View Linked Event")
 							.onClick(() => {
-								window.open(linkedEventURL, '_blank');
+								window.open(linkedEventURL, "_blank");
 							});
-
 					}
 				});
 			} else {
-				const noBookmarksDiv = container.createEl("div", { cls: "nobookmarks-card" });
-				noBookmarksDiv.createEl("h6", { text: "No Bookmarks Found 📚" });
-				noBookmarksDiv.createEl("p", { text: "Use listr.lol to edit & manage your bookmarks" });
-				const linkEl = noBookmarksDiv.createEl("a", { text: "listr.lol" });
+				const noBookmarksDiv = container.createEl("div", {
+					cls: "nobookmarks-card",
+				});
+				noBookmarksDiv.createEl("h6", {
+					text: "No Bookmarks Found 📚",
+				});
+				noBookmarksDiv.createEl("p", {
+					text: "Use listr.lol to edit & manage your bookmarks",
+				});
+				const linkEl = noBookmarksDiv.createEl("a", {
+					text: "listr.lol",
+				});
 				linkEl.href = "https://listr.lol";
 				linkEl.target = "_blank";
-
 			}
 		} catch (err) {
 			console.error("Error reading bookmarks:", err);
-			new Notice("Problem reading bookmarks - re-connect & check you list.")
-			const noBookmarksDiv = container.createEl("div", { cls: "nobookmarks-card" });
+			new Notice(
+				"Problem reading bookmarks - re-connect & check you list.",
+			);
+			const noBookmarksDiv = container.createEl("div", {
+				cls: "nobookmarks-card",
+			});
 			noBookmarksDiv.createEl("h6", { text: "No Bookmarks Found 📚" });
-			noBookmarksDiv.createEl("p", { text: "Use listr.lol to edit & manage your bookmarks" });
+			noBookmarksDiv.createEl("p", {
+				text: "Use listr.lol to edit & manage your bookmarks",
+			});
 			const linkEl = noBookmarksDiv.createEl("a", { text: "listr.lol" });
 			linkEl.href = "https://listr.lol";
 			linkEl.target = "_blank";
@@ -250,26 +303,34 @@ export class ReaderView extends ItemView {
 	}
 
 	openLink(url: string) {
-		console.log(url)
-		window.open(url, '_blank');
+		console.log(url);
+		window.open(url, "_blank");
 	}
-
 
 	async downloadBookmark(bookmark: any) {
 		try {
 			let filename: string;
-			const titleTag = bookmark.tags.find((tag: any[]) => tag[0] === "title");
+			const titleTag = bookmark.tags.find(
+				(tag: any[]) => tag[0] === "title",
+			);
 			if (titleTag) {
 				filename = `${titleTag[1]}.md`;
 			} else {
 				filename = `bookmark_${bookmark.id.substring(0, 8)}.md`;
 			}
-			const content = this.generateMarkdownContent(bookmark); 
+			const content = this.generateMarkdownContent(bookmark);
 
-			const file: TFile | null = await this.createMarkdownFile(filename, content);
+			const file: TFile | null = await this.createMarkdownFile(
+				filename,
+				content,
+			);
 
 			if (file !== null) {
-				await this.app.workspace.openLinkText(filename, file.path, true);
+				await this.app.workspace.openLinkText(
+					filename,
+					file.path,
+					true,
+				);
 			} else {
 				new Notice("Failed to create file. File may already exist.");
 			}
@@ -279,8 +340,10 @@ export class ReaderView extends ItemView {
 		}
 	}
 
-
-	async createMarkdownFile(filename: string, content: string): Promise<TFile | null> {
+	async createMarkdownFile(
+		filename: string,
+		content: string,
+	): Promise<TFile | null> {
 		try {
 			const file = this.app.vault.create(filename, content);
 			return file;
@@ -294,14 +357,12 @@ export class ReaderView extends ItemView {
 		}
 	}
 
-
-
 	generateMarkdownContent(bookmark: any): string {
 		const createdAt = new Date(bookmark.created_at * 1000).toLocaleString();
 
-		let source : nip19.ProfilePointer = {
-			pubkey: bookmark.pubkey, 
-		}
+		let source: nip19.ProfilePointer = {
+			pubkey: bookmark.pubkey,
+		};
 		let y = nip19.nprofileEncode(source);
 		const url = `https://njump.me/${y}`;
 		const markdownContent = `
@@ -319,7 +380,6 @@ ${bookmark.content}
 		return markdownContent;
 	}
 
-
 	extractImageUrls(content: string): string[] {
 		const urlRegex = /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif))/gi;
 		const urls: string[] = [];
@@ -330,23 +390,17 @@ ${bookmark.content}
 		return urls;
 	}
 
-
-
 	focusFile = (path: string, shouldSplit = false): void => {
-		const targetFile = this.app.vault
-			.getAbstractFileByPath(path)
+		const targetFile = this.app.vault.getAbstractFileByPath(path);
 		if (targetFile && targetFile instanceof TFile) {
 			let leaf = this.app.workspace.getLeaf();
 			const createLeaf = shouldSplit || leaf?.getViewState().pinned;
 			if (createLeaf) {
-				leaf = this.app.workspace.getLeaf('tab');
+				leaf = this.app.workspace.getLeaf("tab");
 			}
 			leaf?.openFile(targetFile);
 		} else {
-			new Notice('Cannot find a file with that name');
+			new Notice("Cannot find a file with that name");
 		}
 	};
-
 }
-
-

@@ -1,13 +1,14 @@
 import NostrWriterPlugin from "main";
-import * as path from 'path';
+import * as path from "path";
 import { nip19 } from "nostr-tools";
-import { SimplePool } from 'nostr-tools/pool';
-import { Event } from "nostr-tools/core"
+import { SimplePool } from "nostr-tools/pool";
+import { Event } from "nostr-tools/core";
 import { finalizeEvent, getPublicKey } from "nostr-tools/pure";
 import { Relay } from "nostr-tools/relay";
 import { App, Notice, TFile } from "obsidian";
 import { NostrWriterPluginSettings } from "src/settings";
 import { v4 as uuidv4 } from "uuid";
+
 import ImageUploadService from "./ImageUploadService";
 
 interface Profile {
@@ -29,33 +30,36 @@ export default class NostrService {
 	private poolUrls: string[];
 	private imageUploadService: ImageUploadService;
 
-
 	constructor(
 		plugin: NostrWriterPlugin,
 		app: App,
-		settings: NostrWriterPluginSettings
+		settings: NostrWriterPluginSettings,
 	) {
 		if (!settings.privateKey) {
 			console.error(
-				"YourPlugin requires a private key to be set in the settings."
+				"YourPlugin requires a private key to be set in the settings.",
 			);
 			return;
 		}
 
 		if (settings.multipleProfilesEnabled) {
-			console.log("multiple profiles enabled")
+			console.log("multiple profiles enabled");
 			this.profiles = settings.profiles;
 			this.multipleProfilesEnabled = true;
 		}
 		this.plugin = plugin;
 		this.app = app;
-		this.imageUploadService = new ImageUploadService(this.plugin, this.app, settings);
+		this.imageUploadService = new ImageUploadService(
+			this.plugin,
+			this.app,
+			settings,
+		);
 		this.privateKey = this.convertKeyToHex(settings.privateKey);
 		this.publicKey = getPublicKey(this.privateKey);
 		this.relayURLs = [];
 		if (!settings.relayURLs) {
 			console.error(
-				"YourPlugin requires a list of relay urls to be set in the settings, defaulting."
+				"YourPlugin requires a list of relay urls to be set in the settings, defaulting.",
 			);
 			this.relayURLs = [
 				"wss://nos.lol ",
@@ -76,11 +80,10 @@ export default class NostrService {
 	}
 
 	reloadMultipleAccounts() {
-		console.log("reloading multiple accounts...")
+		console.log("reloading multiple accounts...");
 		this.profiles = this.plugin.settings.profiles;
 		this.multipleProfilesEnabled = true;
 	}
-
 
 	async connectToRelays() {
 		this.refreshRelayUrls();
@@ -94,10 +97,12 @@ export default class NostrService {
 
 					relayAttempt.onclose = () => {
 						handleFailure();
-					}
+					};
 
 					const handleFailure = () => {
-						console.log(`Disconnected from ${url}, updating status bar.`);
+						console.log(
+							`Disconnected from ${url}, updating status bar.`,
+						);
 						this.connectedRelays.remove(relayAttempt);
 						this.updateStatusBar();
 						resolve(null);
@@ -115,7 +120,7 @@ export default class NostrService {
 
 		Promise.all(connectionPromises).then(() => {
 			console.log(
-				`Connected to ${this.connectedRelays.length} / ${this.relayURLs.length} relays`
+				`Connected to ${this.connectedRelays.length} / ${this.relayURLs.length} relays`,
 			);
 			this.updateStatusBar();
 			if (this.connectedRelays.length > 0) {
@@ -126,12 +131,12 @@ export default class NostrService {
 	}
 
 	setConnectionPool = () => {
-		this.pool = new SimplePool()
+		this.pool = new SimplePool();
 		this.poolUrls = [];
 		for (const relay of this.connectedRelays) {
 			this.poolUrls.push(relay.url);
 		}
-	}
+	};
 
 	updateStatusBar = () => {
 		if (this.connectedRelays.length === 0) {
@@ -139,16 +144,19 @@ export default class NostrService {
 			this.isConnected = false;
 		} else {
 			this.plugin.statusBar?.setText(
-				`Nostr 🟣 ${this.connectedRelays.length} / ${this.relayURLs.length} relays.`
+				`Nostr 🟣 ${this.connectedRelays.length} / ${this.relayURLs.length} relays.`,
 			);
 		}
 	};
 
 	refreshRelayUrls() {
 		this.relayURLs = [];
-		if (!this.plugin.settings.relayURLs || this.plugin.settings.relayURLs.length === 0) {
+		if (
+			!this.plugin.settings.relayURLs ||
+			this.plugin.settings.relayURLs.length === 0
+		) {
 			console.error(
-				"YourPlugin requires a list of relay urls to be set in the settings, defaulting to Damus."
+				"YourPlugin requires a list of relay urls to be set in the settings, defaulting to Damus.",
 			);
 			this.relayURLs = [
 				"wss://nos.lol ",
@@ -184,13 +192,19 @@ export default class NostrService {
 		return this.publicKey;
 	}
 
-	async publishShortFormNote(message: string, profileNickname: string): Promise<{ success: boolean; publishedRelays: string[] }> {
+	async publishShortFormNote(
+		message: string,
+		profileNickname: string,
+	): Promise<{ success: boolean; publishedRelays: string[] }> {
 		console.log(`Sending a short form note to Nostr...`);
 		let profilePrivateKey = this.privateKey;
 		let profilePublicKey = this.publicKey;
 		if (profileNickname !== "default" && this.multipleProfilesEnabled) {
 			console.log("recieved non-default profile: " + profileNickname);
-			for (const { profileNickname: nickname, profilePrivateKey: key } of this.profiles) {
+			for (const {
+				profileNickname: nickname,
+				profilePrivateKey: key,
+			} of this.profiles) {
 				if (profileNickname === nickname) {
 					profilePrivateKey = this.convertKeyToHex(key);
 					profilePublicKey = getPublicKey(profilePrivateKey);
@@ -209,7 +223,10 @@ export default class NostrService {
 			};
 
 			// this assigns the pubkey, calculates the event id and signs the event in a single step
-			const signedEvent = finalizeEvent(eventTemplate, Buffer.from(profilePrivateKey))
+			const signedEvent = finalizeEvent(
+				eventTemplate,
+				Buffer.from(profilePrivateKey),
+			);
 			return this.publishToRelays(signedEvent, "", "");
 		} else {
 			console.error("No message to publish");
@@ -225,22 +242,31 @@ export default class NostrService {
 		title: string,
 		userSelectedTags: string[],
 		profileNickname: string,
-		publishAsDraft: boolean
+		publishAsDraft: boolean,
 	): Promise<{ success: boolean; publishedRelays: string[] }> {
 		if (!publishAsDraft) {
-			new Notice(`⏳ Publishing your note ${activeFile.name} to nostr...`)
+			new Notice(
+				`⏳ Publishing your note ${activeFile.name} to nostr...`,
+			);
 		} else {
-			new Notice(`⏳ Publishing your note ${activeFile.name} as a draft to nostr...`)
+			new Notice(
+				`⏳ Publishing your note ${activeFile.name} as a draft to nostr...`,
+			);
 		}
 
 		let profilePrivateKey = this.privateKey;
 		let profilePublicKey = this.publicKey;
 		if (profileNickname !== "default" && this.multipleProfilesEnabled) {
 			console.log("recieved non-default profile: " + profileNickname);
-			for (const { profileNickname: nickname, profilePrivateKey: key } of this.profiles) {
+			for (const {
+				profileNickname: nickname,
+				profilePrivateKey: key,
+			} of this.profiles) {
 				if (profileNickname === nickname) {
 					profilePrivateKey = this.convertKeyToHex(key);
-					profilePublicKey = getPublicKey(Buffer.from(profilePrivateKey));
+					profilePublicKey = getPublicKey(
+						Buffer.from(profilePrivateKey),
+					);
 				}
 			}
 		}
@@ -253,16 +279,19 @@ export default class NostrService {
 			}
 
 			if (imageBannerFilePath !== null) {
-				new Notice("🖼️ Uploading Banner Image")
-				let imageUploadResult = await this.imageUploadService.uploadArticleBannerImage(imageBannerFilePath);
+				new Notice("🖼️ Uploading Banner Image");
+				let imageUploadResult =
+					await this.imageUploadService.uploadArticleBannerImage(
+						imageBannerFilePath,
+					);
 				if (imageUploadResult !== null) {
 					tags.push(["image", imageUploadResult]);
-					new Notice("✅ Uploaded Banner Image")
+					new Notice("✅ Uploaded Banner Image");
 				} else {
-					new Notice("❌ Problem Uploading Banner Image..")
+					new Notice("❌ Problem Uploading Banner Image..");
 				}
 			} else {
-				console.info("No banner image...")
+				console.info("No banner image...");
 			}
 
 			let timestamp = Math.floor(Date.now() / 1000);
@@ -295,27 +324,49 @@ export default class NostrService {
 					}
 				}
 				if (imagePaths.length > 0) {
-					new Notice("✅ Found inline images - uploading with article.")
-					let imageUploadResult = await this.imageUploadService.uploadImagesToStorageProvider(imagePaths)
-					if (imageUploadResult.success && imageUploadResult.results && imageUploadResult.results.length > 0) {
+					new Notice(
+						"✅ Found inline images - uploading with article.",
+					);
+					let imageUploadResult =
+						await this.imageUploadService.uploadImagesToStorageProvider(
+							imagePaths,
+						);
+					if (
+						imageUploadResult.success &&
+						imageUploadResult.results &&
+						imageUploadResult.results.length > 0
+					) {
 						for (const imageTarget of imageUploadResult.results) {
-							if (imageTarget.replacementStringURL !== null && imageTarget.uploadMetadata !== null) {
-								fileContent = fileContent.replace(imageTarget.stringToReplace, imageTarget.replacementStringURL);
-								let imetaTag = this.getImetaTagForImage(imageTarget.uploadMetadata);
+							if (
+								imageTarget.replacementStringURL !== null &&
+								imageTarget.uploadMetadata !== null
+							) {
+								fileContent = fileContent.replace(
+									imageTarget.stringToReplace,
+									imageTarget.replacementStringURL,
+								);
+								let imetaTag = this.getImetaTagForImage(
+									imageTarget.uploadMetadata,
+								);
 								if (imetaTag !== null) {
 									tags.push(imetaTag);
 								}
 							}
 						}
 					} else {
-						console.error("Problem with the image upload, some or all images may not have successfully uploaded...")
+						console.error(
+							"Problem with the image upload, some or all images may not have successfully uploaded...",
+						);
 					}
 				} else {
-					console.error("No images found in vault for this file..")
+					console.error("No images found in vault for this file..");
 				}
 			} catch (e) {
-				console.error("Bigger Problem with the image upload, some or all images may not have successfully uploaded...", e)
-				new Notice("❌ Problem uploading inline images.")
+				console.error(
+					"Bigger Problem with the image upload, some or all images may not have successfully uploaded...",
+					e,
+				);
+				new Notice("❌ Problem uploading inline images.");
 			}
 
 			let eventTemplate = {
@@ -325,12 +376,15 @@ export default class NostrService {
 				content: fileContent,
 			};
 
-			const finalEvent = finalizeEvent(eventTemplate, Buffer.from(profilePrivateKey))
+			const finalEvent = finalizeEvent(
+				eventTemplate,
+				Buffer.from(profilePrivateKey),
+			);
 
 			return this.publishToRelays(
 				finalEvent,
 				activeFile.path,
-				profileNickname
+				profileNickname,
 			);
 		} else {
 			console.error("No message to publish");
@@ -344,80 +398,103 @@ export default class NostrService {
 		let mimeType = uploadData.mime ? uploadData.mime : null;
 		let ox = uploadData.original_sha256 ? uploadData.original_sha256 : null;
 		let size = uploadData.size ? uploadData.size : null;
-		let dim = uploadData.dimensionsString ? uploadData.dimensionsString : null;
+		let dim = uploadData.dimensionsString
+			? uploadData.dimensionsString
+			: null;
 		let blurhash = uploadData.blurhash ? uploadData.blurhash : null;
 		let thumbnail = uploadData.thumbnail ? uploadData.thumbnail : null;
 
 		if (url !== null) {
-			inlineTag.push("imeta")
-			let urlString = `url ${url}`
-			inlineTag.push(urlString)
+			inlineTag.push("imeta");
+			let urlString = `url ${url}`;
+			inlineTag.push(urlString);
 		} else {
-			console.error("No upload URL in metadata, so not adding imeta tag")
+			console.error("No upload URL in metadata, so not adding imeta tag");
 			return null;
 		}
 
 		if (mimeType !== null) {
-			let mimeString = `m ${mimeType}`
-			inlineTag.push(mimeString)
+			let mimeString = `m ${mimeType}`;
+			inlineTag.push(mimeString);
 		}
 		if (ox !== null) {
-			let oxString = `ox ${ox}`
-			inlineTag.push(oxString)
+			let oxString = `ox ${ox}`;
+			inlineTag.push(oxString);
 		}
 		if (size !== null) {
-			let sizeString = `size ${size}`
-			inlineTag.push(sizeString)
+			let sizeString = `size ${size}`;
+			inlineTag.push(sizeString);
 		}
 		if (dim !== null) {
-			let dimString = `dim ${dim}`
-			inlineTag.push(dimString)
+			let dimString = `dim ${dim}`;
+			inlineTag.push(dimString);
 		}
 		if (blurhash !== null) {
-			let blurhashString = `blurhash ${blurhash}`
-			inlineTag.push(blurhashString)
+			let blurhashString = `blurhash ${blurhash}`;
+			inlineTag.push(blurhashString);
 		}
 
 		if (thumbnail !== null) {
-			let thumbnailString = `thumb ${thumbnail}`
-			inlineTag.push(thumbnailString)
+			let thumbnailString = `thumb ${thumbnail}`;
+			inlineTag.push(thumbnailString);
 		}
 
 		return inlineTag;
 	}
 
 	isImagePath(filePath: string): boolean {
-		const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg'];
+		const imageExtensions = [
+			".png",
+			".jpg",
+			".jpeg",
+			".gif",
+			".bmp",
+			".svg",
+		];
 		const ext = path.extname(filePath).toLowerCase();
 		return imageExtensions.includes(ext);
 	}
 
-	async getUserBookmarkIDs(): Promise<{ success: boolean; bookmark_event_ids: string[], longform_event_ids: string[] }> {
+	async getUserBookmarkIDs(): Promise<{
+		success: boolean;
+		bookmark_event_ids: string[];
+		longform_event_ids: string[];
+	}> {
 		const bookmark_event_ids: string[] = [];
 		const longform_event_ids: string[] = [];
 		try {
 			if (this.pool === undefined || this.poolUrls.length === 0) {
-				console.error("No pool...")
+				console.error("No pool...");
 				this.setConnectionPool();
 			}
-			let events = await this.pool.querySync(this.poolUrls, { kinds: [10003], authors: [this.publicKey] })
+			let events = await this.pool.querySync(this.poolUrls, {
+				kinds: [10003],
+				authors: [this.publicKey],
+			});
 			if (events.length > 0) {
 				for (let event of events) {
 					for (const tag of event.tags) {
-						if (tag[0] === 'e') {
+						if (tag[0] === "e") {
 							bookmark_event_ids.push(tag[1]);
 						}
 						// handle kind 30023 long-form events
-						if (tag[0] === 'a') {
+						if (tag[0] === "a") {
 							longform_event_ids.push(tag[1]);
 						}
 					}
 				}
-				return { success: true, bookmark_event_ids, longform_event_ids }
+				return {
+					success: true,
+					bookmark_event_ids,
+					longform_event_ids,
+				};
 			}
 			return events;
 		} catch (error) {
-			console.error('Error occurred while fetching bookmarks ids:', error);
+			console.error(
+				"Error occurred while fetching bookmarks ids:",
+				error,
+			);
 			return { success: false, bookmark_event_ids, longform_event_ids };
 		}
 	}
@@ -432,32 +509,40 @@ export default class NostrService {
 				}
 				if (res.longform_event_ids.length > 0) {
 					for (let atag of res.longform_event_ids) {
-						let author = ""
-						let eTag = ""
-						let parts = atag.split(':');
+						let author = "";
+						let eTag = "";
+						let parts = atag.split(":");
 						if (parts.length >= 2) {
 							author = parts[1];
 							eTag = parts[2];
 						}
-						let articles = await this.pool.querySync(this.poolUrls, { authors: [author], kinds: [30023] });
+						let articles = await this.pool.querySync(
+							this.poolUrls,
+							{ authors: [author], kinds: [30023] },
+						);
 						for (let articleItem of articles) {
-							if (articleItem.tags.some(tag => tag[0] === "d" && tag[1] === eTag)) {
+							if (
+								articleItem.tags.some(
+									(tag) => tag[0] === "d" && tag[1] === eTag,
+								)
+							) {
 								events.push(articleItem);
 							}
 						}
-
 					}
 				}
-				let newEvents = await this.pool.querySync(this.poolUrls, { ids: res.bookmark_event_ids, kinds: [1, 30023] });
+				let newEvents = await this.pool.querySync(this.poolUrls, {
+					ids: res.bookmark_event_ids,
+					kinds: [1, 30023],
+				});
 				events.push(...newEvents);
 				return events;
 			} else {
-				console.error('No bookmark IDs returned');
+				console.error("No bookmark IDs returned");
 				return [];
 			}
-
 		} catch (err) {
-			console.error('Error occurred while fetching bookmarks:', err);
+			console.error("Error occurred while fetching bookmarks:", err);
 			return [];
 		}
 	}
@@ -468,30 +553,34 @@ export default class NostrService {
 			if (this.pool === undefined || this.poolUrls.length === 0) {
 				this.setConnectionPool();
 			}
-			let highlights = await this.pool.querySync(this.poolUrls, { authors: [this.publicKey], kinds: [9802] });
+			let highlights = await this.pool.querySync(this.poolUrls, {
+				authors: [this.publicKey],
+				kinds: [9802],
+			});
 			if (highlights.length > 0) {
 				for (let event of highlights) {
 					events.push(event);
 				}
 			}
 			return events;
-
 		} catch (err) {
-			console.error('Error occurred while fetching bookmarks:', err);
+			console.error("Error occurred while fetching bookmarks:", err);
 			return [];
 		}
 	}
-
 
 	async getUserProfile(userHexPubKey: string): Promise<Event> {
 		try {
 			if (this.pool === undefined || this.poolUrls.length === 0) {
 				this.setConnectionPool();
 			}
-			let profileEvent = await this.pool.querySync(this.poolUrls, { kinds: [0], authors: [userHexPubKey] })
+			let profileEvent = await this.pool.querySync(this.poolUrls, {
+				kinds: [0],
+				authors: [userHexPubKey],
+			});
 			return profileEvent;
 		} catch (err) {
-			console.error('Error occurred while fetching bookmarks:', err);
+			console.error("Error occurred while fetching bookmarks:", err);
 			return null;
 		}
 	}
@@ -506,15 +595,22 @@ export default class NostrService {
 				this.setConnectionPool();
 			}
 			let eventParts = tagValue.split(":");
-			let articles = await this.pool.querySync(this.poolUrls, { kinds: [parseInt(eventParts[0], 10)], authors: [eventParts[1]] })
+			let articles = await this.pool.querySync(this.poolUrls, {
+				kinds: [parseInt(eventParts[0], 10)],
+				authors: [eventParts[1]],
+			});
 			for (let articleItem of articles) {
-				if (articleItem.tags.some(tag => tag[0] === "d" && tag[1] === eventParts[2])) {
+				if (
+					articleItem.tags.some(
+						(tag) => tag[0] === "d" && tag[1] === eventParts[2],
+					)
+				) {
 					events.push(articleItem);
 				}
 			}
 			return events[0];
 		} catch (err) {
-			console.error('Error occurred while fetching bookmarks:', err);
+			console.error("Error occurred while fetching bookmarks:", err);
 			return null;
 		}
 	}
@@ -522,7 +618,7 @@ export default class NostrService {
 	async publishToRelays(
 		finalEvent: Event,
 		filePath: string,
-		profileNickname: string
+		profileNickname: string,
 	): Promise<{ success: boolean; publishedRelays: string[] }> {
 		try {
 			let publishingPromises = this.connectedRelays.map(async (relay) => {
@@ -530,14 +626,20 @@ export default class NostrService {
 					if (relay.connected) {
 						console.log(`Publishing to ${relay.url}`);
 						await relay.publish(finalEvent);
-						console.log(`Event published successfully to ${relay.url}`);
+						console.log(
+							`Event published successfully to ${relay.url}`,
+						);
 						return { success: true, url: relay.url };
 					} else {
-						console.log(`Skipping disconnected relay: ${relay.url}`);
+						console.log(
+							`Skipping disconnected relay: ${relay.url}`,
+						);
 						return { success: false };
 					}
 				} catch (error) {
-					console.error(`Failed to publish event to ${relay.url}: ${error}`);
+					console.error(
+						`Failed to publish event to ${relay.url}: ${error}`,
+					);
 					return { success: false };
 				}
 			});
@@ -548,7 +650,7 @@ export default class NostrService {
 				.map((result) => result.url!);
 
 			console.log(
-				`Published to ${publishedRelays.length} / ${this.connectedRelays.length} relays.`
+				`Published to ${publishedRelays.length} / ${this.connectedRelays.length} relays.`,
 			);
 
 			if (publishedRelays.length === 0) {
@@ -560,17 +662,19 @@ export default class NostrService {
 						finalEvent,
 						filePath,
 						publishedRelays,
-						profileNickname
+						profileNickname,
 					);
 				}
 				return { success: true, publishedRelays };
 			}
 		} catch (error) {
-			console.error("An error occurred while publishing to relays", error);
+			console.error(
+				"An error occurred while publishing to relays",
+				error,
+			);
 			return { success: false, publishedRelays: [] };
 		}
 	}
-
 
 	shutdownRelays() {
 		console.log("Shutting down Nostr service");
@@ -598,14 +702,13 @@ export default class NostrService {
 		finalEvent: Event,
 		publishedFilePath: string,
 		relays: string[],
-		profileNickname: string
+		profileNickname: string,
 	) {
 		const publishedDataPath = `${this.plugin.manifest.dir}/published.json`;
 		let publishedEvents;
 		try {
-			const fileContent = await this.app.vault.adapter.read(
-				publishedDataPath
-			);
+			const fileContent =
+				await this.app.vault.adapter.read(publishedDataPath);
 			publishedEvents = JSON.parse(fileContent);
 		} catch (e) {
 			publishedEvents = [];
@@ -620,7 +723,7 @@ export default class NostrService {
 		publishedEvents.push(eventWithMetaData);
 		await this.app.vault.adapter.write(
 			publishedDataPath,
-			JSON.stringify(publishedEvents)
+			JSON.stringify(publishedEvents),
 		);
 	}
 
