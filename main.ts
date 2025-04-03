@@ -5,11 +5,12 @@ import {
   lastValueFrom,
   Observable,
   of,
+  skip,
   Subscription,
   switchMap,
   toArray,
 } from "rxjs";
-import { App, Notice, Plugin, PluginManifest } from "obsidian";
+import { App, Command, Notice, Plugin, PluginManifest } from "obsidian";
 import { onlyEvents, RelayPool } from "applesauce-relay";
 import { AccountManager } from "applesauce-accounts";
 import { registerCommonAccountTypes } from "applesauce-accounts/accounts";
@@ -19,17 +20,19 @@ import { EventFactory } from "applesauce-factory";
 import { ActionHub } from "applesauce-actions";
 import { Filter, kinds, nip19, NostrEvent } from "nostr-tools";
 
-import ConfirmPublishModal from "./src/components/ConfirmPublishModal";
+import ConfirmPublishModal from "./src/components/PublishNewModal";
 import { NostrWriterSettingTab } from "./src/views/SettingsView";
 import { PublishedView, PUBLISHED_VIEW } from "./src/views/PublishedView";
-import NostrPluginData, { TNostrPluginData } from "./src/schema/settings";
+import NostrPluginData, { TNostrPluginData } from "./src/schema/plugin-data";
 import NostrLoaders from "./src/service/loaders";
 import { DEFAULT_FALLBACK_RELAYS } from "./src/const";
 import NostrConnectModal from "./src/components/NostrConnectModal";
+import { object } from "zod";
+import { getDisplayName, getProfileContent } from "applesauce-core/helpers";
 
 export default class NostrArticlesPlugin extends Plugin {
   pool = new RelayPool();
-  accounts = new AccountManager<{ name: string }>();
+  accounts = new AccountManager<{ name?: string }>();
 
   events = new EventStore();
   queries = new QueryStore(this.events);
@@ -86,31 +89,19 @@ export default class NostrArticlesPlugin extends Plugin {
 
     // Load accounts
     this.accounts.fromJSON(this.data.accounts);
+    if (this.data.active) this.accounts.setActive(this.data.active);
 
     // Start loaders
     this.loaders.start();
 
     // Start the plugin lifecycle
-    this.startLifecycle();
+    this.lifecycle();
 
+    // Setup views
     this.addSettingTab(new NostrWriterSettingTab(this.app, this));
-    this.registerView(PUBLISHED_VIEW, (leaf) => new PublishedView(leaf, this));
-
-    // icon candidates : 'checkmark', 'blocks', 'scroll', 'pin'
-    this.addRibbonIcon("blocks", "See notes published to Nostr", () => {
-      this.togglePublishedView();
-    });
-
-    this.addRibbonIcon(
-      "file-up",
-      "Publish this note to Nostr",
-      async (evt: MouseEvent) => {
-        await this.checkAndPublish();
-      },
-    );
 
     this.addCommand({
-      id: "publish-note-to-nostr",
+      id: "publish-article",
       name: "Publish",
       callback: async () => {
         await this.checkAndPublish();
@@ -134,8 +125,8 @@ export default class NostrArticlesPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "account-info",
-      name: "nostr account info",
+      id: "account-pubkey",
+      name: "Show active account pubkey",
       callback: async () => {
         if (!this.accounts.active) {
           new Notice("No active account");
@@ -149,6 +140,12 @@ export default class NostrArticlesPlugin extends Plugin {
   }
 
   onunload(): void {
+    // Save accounts
+    this.updateData({
+      accounts: this.accounts.toJSON(),
+      active: this.accounts.active?.id,
+    });
+
     // Stop all subscriptions
     for (const sub of this.cleanup) sub.unsubscribe();
     this.cleanup = [];
@@ -161,41 +158,118 @@ export default class NostrArticlesPlugin extends Plugin {
       .forEach((leaf) => leaf.detach());
   }
 
-  private startLifecycle() {
-    // Save account changes
+  private lifecycle() {
+    this.lifecycleSavePluginData();
+    this.switchAccountCommands();
+    this.lifecycleUserNotify();
+
+    // Set loaders lookup relays when they change
+    this.cleanup.push(
+      this.lookupRelays.subscribe((relays) =>
+        this.loaders.setLookupRelays(relays),
+      ),
+    );
+
+    // Load profiles for all accounts
+    this.cleanup.push(
+      this.accounts.accounts$.subscribe((accounts) => {
+        for (const account of accounts) {
+          console.log(`Loading events for ${account.pubkey}`);
+
+          this.loaders.replaceable.next({
+            pubkey: account.pubkey,
+            kind: kinds.Metadata,
+          });
+          this.loaders.replaceable.next({
+            pubkey: account.pubkey,
+            kind: kinds.Contacts,
+          });
+          this.loaders.replaceable.next({
+            pubkey: account.pubkey,
+            kind: kinds.RelayList,
+          });
+        }
+      }),
+    );
+
+    // Update account names when profiles are loaded
+    this.events.filters({ kinds: [kinds.Metadata] }).subscribe((event) => {
+      const account = this.accounts.getAccountForPubkey(event.pubkey);
+
+      if (account) {
+        try {
+          const profile = getProfileContent(event);
+
+          const name = getDisplayName(profile);
+          console.log(`Updating account name for ${account.pubkey}`, name);
+
+          account.metadata = { name };
+
+          // Save accounts
+          this.updateData({ accounts: this.accounts.toJSON() });
+        } catch (error) {}
+      }
+    });
+  }
+
+  /** Save plugin data when it changes */
+  private lifecycleSavePluginData() {
     this.cleanup.push(
       this.accounts.accounts$.subscribe(() =>
         this.updateData({ accounts: this.accounts.toJSON() }),
       ),
     );
 
-    // Save settings on changes
     this.cleanup.push(
-      this.lookupRelays.subscribe((relays) =>
-        this.updateData({ lookupRelays: relays }),
+      this.accounts.active$.subscribe((account) =>
+        this.updateData({ active: account?.id }),
       ),
     );
+
     this.cleanup.push(
       this.fallbackRelays.subscribe((relays) =>
         this.updateData({ fallbackRelays: relays }),
       ),
     );
 
-    // Lookup profile events when account changes
     this.cleanup.push(
-      this.accounts.active$.pipe(filter((a) => !!a)).subscribe((account) => {
-        this.loaders.replaceable.next({
-          pubkey: account.pubkey,
-          kind: kinds.Metadata,
-        });
-        this.loaders.replaceable.next({
-          pubkey: account.pubkey,
-          kind: kinds.Contacts,
-        });
-        this.loaders.replaceable.next({
-          pubkey: account.pubkey,
-          kind: kinds.RelayList,
-        });
+      this.lookupRelays.subscribe((relays) =>
+        this.updateData({ lookupRelays: relays }),
+      ),
+    );
+  }
+
+  private switchAccountCommands() {
+    let commands = new Map<string, Command>();
+
+    this.cleanup.push(
+      this.accounts.accounts$.subscribe((accounts) => {
+        for (const account of accounts) {
+          const command = commands.get(account.id);
+
+          if (!command) {
+            commands.set(
+              account.id,
+              this.addCommand({
+                id: `switch-account-${account.id}`,
+                name: `Switch to ${account.metadata?.name}`,
+                callback: () => this.accounts.setActive(account),
+              }),
+            );
+          } else {
+            // update name
+            command.name = `Switch to ${account.metadata?.name}`;
+          }
+        }
+      }),
+    );
+  }
+
+  private lifecycleUserNotify() {
+    // notify when active account changes
+    this.cleanup.push(
+      this.accounts.active$.pipe(skip(1)).subscribe((account) => {
+        if (account) new Notice(`Switched to ${account.metadata?.name}`);
       }),
     );
 

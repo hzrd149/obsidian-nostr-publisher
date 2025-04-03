@@ -12,6 +12,7 @@ import { isValidUrl } from "../helpers/url";
 import { normalizePrivateKey } from "../helpers/nip19";
 import { SimpleAccount } from "applesauce-accounts/accounts";
 import NostrConnectModal from "../components/NostrConnectModal";
+import { nip19 } from "nostr-tools";
 
 export class NostrWriterSettingTab extends PluginSettingTab {
   plugin: NostrArticlesPlugin;
@@ -42,7 +43,8 @@ export class NostrWriterSettingTab extends PluginSettingTab {
 
     for (const account of this.plugin.accounts.accounts) {
       new Setting(this.containerEl)
-        .setName(`👤 - ${account.metadata?.name}`)
+        .setName(account.metadata?.name || account.pubkey.slice(0, 8))
+        .setDesc(nip19.npubEncode(account.pubkey))
         .addButton((btn) => {
           btn.setIcon("trash");
           btn.setWarning();

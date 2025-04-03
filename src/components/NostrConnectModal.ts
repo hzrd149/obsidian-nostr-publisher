@@ -10,22 +10,15 @@ export default class NostrConnectModal extends Modal {
 
   constructor(
     app: App,
-    private onConnect: (account: NostrConnectAccount<{ name: string }>) => void,
+    private onConnect: (
+      account: NostrConnectAccount<{ name?: string }>,
+    ) => void,
   ) {
     super(app);
 
     this.setTitle("Connect a nostr account");
 
-    let name = "";
     let relay: string = DEFAULT_CONNECT_RELAY;
-
-    new Setting(this.contentEl)
-      .setName("Account name")
-      .setDesc("A local name for the account")
-      .addText((text) => {
-        text.setPlaceholder("new account");
-        text.onChange((v) => (name = v));
-      });
 
     new Setting(this.contentEl)
       .setName("Connection relay")
@@ -43,14 +36,13 @@ export default class NostrConnectModal extends Modal {
       btn.setTooltip("Start the nostr connect process");
 
       btn.onClick(async () => {
-        if (!name) new Notice("Add account name");
         if (!relay) new Notice("Add connection relay");
 
         btn.setDisabled(true);
         btn.setButtonText("Connecting...");
 
         try {
-          await this.createAccount(name, relay);
+          await this.createAccount(relay);
         } catch (error) {
           btn.setButtonText("Connect");
           btn.setDisabled(false);
@@ -64,7 +56,7 @@ export default class NostrConnectModal extends Modal {
     });
   }
 
-  private async createAccount(name: string, relay: string) {
+  private async createAccount(relay: string) {
     this.contentEl.empty();
 
     // Create new signer
@@ -117,18 +109,21 @@ export default class NostrConnectModal extends Modal {
 
     // Create account
     const pubkey = await this.signer.getPublicKey();
-    const account = new NostrConnectAccount<{ name: string }>(
+    const account = new NostrConnectAccount<{ name?: string }>(
       pubkey,
       this.signer!,
     );
-    account.metadata = { name };
 
     this.onConnect(account);
     this.close();
   }
 
   onClose(): void {
-    this.signer?.close();
-    this.signer = undefined;
+    if (this.signer) {
+      this.signer.close();
+      this.signer = undefined;
+
+      new Notice("Nostr connect process cancelled");
+    }
   }
 }
