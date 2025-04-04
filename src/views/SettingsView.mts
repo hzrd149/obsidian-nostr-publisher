@@ -44,16 +44,16 @@ export class NostrWriterSettingTab extends PluginSettingTab {
         .addButton((btn) => {
           btn.setIcon("trash");
           btn.setWarning();
-          btn.setTooltip("Remove this profile");
+          btn.setTooltip("Remove this account");
           btn.onClick(async () => {
             if (
               confirm(
-                "Are you sure you want to delete this profile? This cannot be undone.",
+                "Are you sure you want to delete this account? This cannot be undone.",
               )
             ) {
               this.plugin.accounts.removeAccount(account);
               this.refreshDisplay();
-              new Notice("🗑️ Profile successfully deleted.");
+              new Notice("🗑️ Account deleted.");
             }
           });
         });

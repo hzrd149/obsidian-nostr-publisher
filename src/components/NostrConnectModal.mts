@@ -43,7 +43,9 @@ export default class NostrConnectModal extends Modal {
         btn.setButtonText("Connecting...");
 
         try {
-          await this.connectAccount(relay);
+          const account = await this.connectAccount(relay);
+          this.onConnect(account);
+          this.close();
         } catch (error) {
           btn.setButtonText("Connect");
           btn.setDisabled(false);
@@ -53,6 +55,45 @@ export default class NostrConnectModal extends Modal {
             `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
           );
         }
+      });
+    });
+
+    this.contentEl.createEl("h5", { text: "Bunker URI" });
+    this.contentEl.createEl("p", {
+      text: "Connect using a bunker URI",
+    });
+
+    let bunkerURI = "";
+    this.contentEl.createEl("textarea", {}, (el) => {
+      el.style.width = "100%";
+      el.setAttribute("spellcheck", "false");
+      el.setAttribute("placeholder", "bunker://");
+      el.addEventListener("change", (e) => {
+        bunkerURI = (e.target as HTMLTextAreaElement).value;
+      });
+    });
+
+    new Setting(this.contentEl).addButton((btn) => {
+      btn.setButtonText("Connect");
+      btn.setTooltip("Connect using a bunker URI");
+      btn.setCta();
+
+      btn.onClick(async () => {
+        if (!bunkerURI) {
+          new Notice("Add a bunker URI");
+          return;
+        }
+
+        try {
+          NostrConnectSigner.parseBunkerURI(bunkerURI);
+        } catch (error) {
+          new Notice("Invalid bunker URI");
+          return;
+        }
+
+        const account = await this.connectBunker(bunkerURI);
+        this.onConnect(account);
+        this.close();
       });
     });
   }
@@ -120,8 +161,19 @@ export default class NostrConnectModal extends Modal {
       this.signer!,
     );
 
-    this.onConnect(account);
-    this.close();
+    return account;
+  }
+
+  private async connectBunker(uri: string) {
+    this.contentEl.empty();
+    this.contentEl.createEl("h5", { text: "Connecting..." });
+
+    const signer = await NostrConnectSigner.fromBunkerURI(uri);
+
+    const pubkey = await signer.getPublicKey();
+    const account = new NostrConnectAccount<{ name?: string }>(pubkey, signer);
+
+    return account;
   }
 
   onClose(): void {

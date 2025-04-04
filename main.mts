@@ -121,7 +121,10 @@ export default class NostrArticlesPlugin extends Plugin {
 
     // Load accounts
     this.accounts.fromJSON(data.accounts);
-    if (data.active) this.accounts.setActive(data.active);
+    if (data.active)
+      try {
+        this.accounts.setActive(data.active);
+      } catch (err) {}
 
     // Start loaders
     this.loaders.start();
@@ -320,7 +323,7 @@ export default class NostrArticlesPlugin extends Plugin {
               account.id,
               this.addCommand({
                 id: `switch-account-${account.id}`,
-                name: `Switch to ${account.metadata?.name}`,
+                name: `Switch to ${account.metadata?.name || account.pubkey.slice(0, 8)}`,
                 callback: () => this.accounts.setActive(account),
               }),
             );
@@ -350,7 +353,11 @@ export default class NostrArticlesPlugin extends Plugin {
     // notify when active account changes
     this.cleanup.push(
       this.accounts.active$.pipe(skip(1)).subscribe((account) => {
-        if (account) new Notice(`Switched to ${account.metadata?.name}`);
+        if (account)
+          new Notice(
+            `Switched to ${account.metadata?.name || account.pubkey.slice(0, 8)}`,
+          );
+        else new Notice("No nostr account");
       }),
     );
 
@@ -365,10 +372,10 @@ export default class NostrArticlesPlugin extends Plugin {
     this.cleanup.push(
       this.accounts.active$
         .pipe(
-          filter((a) => !!a),
-          switchMap((a) =>
+          filter((a) => a !== undefined),
+          switchMap((account) =>
             this.events.filters({
-              authors: [a.pubkey],
+              authors: [account!.pubkey],
               kinds: [kinds.LongFormArticle],
             }),
           ),
