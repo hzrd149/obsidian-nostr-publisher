@@ -1,4 +1,4 @@
-import NostrArticlesPlugin from "../../main.js";
+import NostrArticlesPlugin from "../../main.mjs";
 import {
   ButtonComponent,
   ItemView,
@@ -48,7 +48,7 @@ export class PublishedView extends ItemView {
         new Notice("View refreshed");
       });
 
-    const publishedFilePath = `${this.plugin.manifest.dir}/published.json`;
+    const publishedFilePath = `${this.plugin.manifest.dir}/published.mjson`;
     try {
       const file = await this.app.vault.adapter.read(publishedFilePath);
       const publishedNotes = JSON.parse(file);
@@ -164,7 +164,7 @@ export class PublishedView extends ItemView {
         noPostsDiv.createEl("h6", { text: "No Posts 📝" });
       }
     } catch (err) {
-      console.error("Error reading published.json:", err);
+      console.error("Error reading published.mjson:", err);
       const noPostsDiv = container.createEl("div", { cls: "no-posts" });
       noPostsDiv.createEl("h6", { text: "No Posts 📝" });
     }

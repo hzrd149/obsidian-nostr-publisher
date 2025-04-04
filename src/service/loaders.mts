@@ -1,12 +1,12 @@
+import { merge, Subscription } from "rxjs";
 import { RelayPool } from "applesauce-relay";
 import {
   ReplaceableLoader,
   SingleEventLoader,
-} from "applesauce-loaders/loaders";
+  NostrRequest,
+} from "applesauce-loaders";
 import { Filter } from "nostr-tools";
-import { NostrRequest } from "applesauce-loaders";
 import { EventStore } from "applesauce-core";
-import { merge, Subscription } from "rxjs";
 
 export default class NostrLoaders {
   protected request: NostrRequest = (relays: string[], filters: Filter[]) =>

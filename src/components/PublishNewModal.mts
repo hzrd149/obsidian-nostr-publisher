@@ -1,4 +1,4 @@
-import { lastValueFrom, Subscription, toArray } from "rxjs";
+import { toArray, Subscription, lastValueFrom } from "rxjs";
 import {
   ButtonComponent,
   Modal,
@@ -17,7 +17,7 @@ import {
 import { unixNow } from "applesauce-core/helpers";
 import { kinds } from "nostr-tools";
 
-import NostrArticlesPlugin from "../../main.js";
+import NostrArticlesPlugin from "../../main.mjs";
 
 export default class ConfirmPublishModal extends Modal {
   plugin: NostrArticlesPlugin;

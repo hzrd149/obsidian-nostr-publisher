@@ -19,13 +19,15 @@ import { EventFactory } from "applesauce-factory";
 import { ActionHub } from "applesauce-actions";
 import { Filter, kinds, nip19, NostrEvent } from "nostr-tools";
 
-import ConfirmPublishModal from "./src/components/PublishNewModal.js";
-import { NostrWriterSettingTab } from "./src/views/SettingsView.js";
-import { PUBLISHED_VIEW } from "./src/views/PublishedView.js";
-import NostrPluginData, { TNostrPluginData } from "./src/schema/plugin-data.js";
-import NostrLoaders from "./src/service/loaders.js";
-import { DEFAULT_FALLBACK_RELAYS } from "./src/const.js";
-import NostrConnectModal from "./src/components/NostrConnectModal.js";
+import ConfirmPublishModal from "./src/components/PublishNewModal.mjs";
+import { NostrWriterSettingTab } from "./src/views/SettingsView.mjs";
+import { PUBLISHED_VIEW } from "./src/views/PublishedView.mjs";
+import NostrPluginData, {
+  TNostrPluginData,
+} from "./src/schema/plugin-data.mjs";
+import NostrLoaders from "./src/service/loaders.mjs";
+import { DEFAULT_FALLBACK_RELAYS } from "./src/const.mjs";
+import NostrConnectModal from "./src/components/NostrConnectModal.mjs";
 
 export default class NostrArticlesPlugin extends Plugin {
   pool = new RelayPool();

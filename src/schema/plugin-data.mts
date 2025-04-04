@@ -1,5 +1,5 @@
 import z from "zod";
-import { DEFAULT_FALLBACK_RELAYS, DEFAULT_LOOKUP_RELAYS } from "../const.js";
+import { DEFAULT_FALLBACK_RELAYS, DEFAULT_LOOKUP_RELAYS } from "../const.mjs";
 
 const NostrPluginData = z.object({
   active: z.string().optional(),

@@ -3,16 +3,23 @@
   "version": "0.1.0",
   "description": "Write nostr articles with obsidian",
   "main": "main.js",
+  "type": "commonjs",
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
     "version": "node version-bump.mjs && git add manifest.json versions.json",
     "format": "prettier --write ."
   },
+  "files": [
+    "main.js",
+    "styles.css",
+    "manifest.json"
+  ],
   "keywords": [
     "nostr",
     "publish",
-    "write"
+    "obsidian",
+    "articles"
   ],
   "author": "hzrd149",
   "license": "MIT",

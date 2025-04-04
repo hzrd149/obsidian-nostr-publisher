@@ -7,8 +7,8 @@ import {
 } from "obsidian";
 import { nip19 } from "nostr-tools";
 
-import NostrArticlesPlugin from "../../main.js";
-import { isValidUrl } from "../helpers/url.js";
+import NostrArticlesPlugin from "../../main.mjs";
+import { isValidUrl } from "../helpers/url.mjs";
 
 export class NostrWriterSettingTab extends PluginSettingTab {
   plugin: NostrArticlesPlugin;
