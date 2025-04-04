@@ -2,7 +2,7 @@
 
 > Publish and manage nostr articles from Obsidian
 
-A rewrite of [nostr-writer](https://github.com/jamesmagoo/nostr-writer) plugin using Applesauce and focused entirely on nostr articles.
+A rewrite of [nostr-writer](https://github.com/jamesmagoo/nostr-writer) plugin focused on nostr articles and using [applesauce](https://github.com/hzrd149/applesauce) and [blossom](https://github.com/hzrd149/blossom-client-sdk).
 
 ## Install / Update
 
