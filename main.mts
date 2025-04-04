@@ -40,6 +40,7 @@ import NostrLoaders from "./src/service/loaders.mjs";
 import { DEFAULT_PLUGIN_RELAYS } from "./src/const.mjs";
 import NostrConnectModal from "./src/components/NostrConnectModal.mjs";
 import Publisher from "./src/service/publisher.mjs";
+import { UserSearchModal } from "./src/components/UserSearchModal.mjs";
 
 export default class NostrArticlesPlugin extends Plugin {
   data = new BehaviorSubject<TNostrPluginData>(NostrPluginData.parse({}));
@@ -136,6 +137,26 @@ export default class NostrArticlesPlugin extends Plugin {
     // Setup views
     this.addSettingTab(new NostrWriterSettingTab(this.app, this));
 
+    this.setupGlobalCommands();
+    this.setupEditorCommands();
+  }
+
+  onunload(): void {
+    // Save accounts
+    this.updateData({
+      accounts: this.accounts.toJSON(),
+      active: this.accounts.active?.id,
+    });
+
+    // Stop all subscriptions
+    for (const sub of this.cleanup) sub.unsubscribe();
+    this.cleanup = [];
+
+    // Stop loaders
+    this.loaders.stop();
+  }
+
+  private setupGlobalCommands() {
     this.addCommand({
       id: "publish-article",
       name: "Publish article",
@@ -157,9 +178,11 @@ export default class NostrArticlesPlugin extends Plugin {
       id: "show-relays",
       name: "Show connected relays",
       callback: async () => {
-        for (let [url, relay] of this.pool.relays) {
-          if (relay.connected) new Notice(`Connected to ${relay.url}`);
-        }
+        const connected = Array.from(this.pool.relays.values())
+          .filter((r) => r.connected)
+          .map((r) => r.url);
+
+        new Notice(`Connected to:\n${connected.join("\n")}`);
       },
     });
 
@@ -170,33 +193,26 @@ export default class NostrArticlesPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "account-pubkey",
+      id: "show-pubkey",
       name: "Show active account pubkey",
       callback: async () => {
         if (!this.accounts.active) {
           new Notice("No active account");
         } else {
-          new Notice(
-            `Public Key: ${nip19.npubEncode(this.accounts.active?.pubkey)}`,
-          );
+          const pubkey = await this.accounts.active.getPublicKey();
+          new Notice(`Public Key: ${nip19.npubEncode(pubkey)}`);
         }
       },
     });
   }
-
-  onunload(): void {
-    // Save accounts
-    this.updateData({
-      accounts: this.accounts.toJSON(),
-      active: this.accounts.active?.id,
+  private setupEditorCommands() {
+    this.addCommand({
+      id: "insert-pubkey-mention",
+      name: "Mention pubkey",
+      editorCallback: async (editor, ctx) => {
+        new UserSearchModal(this.app).open();
+      },
     });
-
-    // Stop all subscriptions
-    for (const sub of this.cleanup) sub.unsubscribe();
-    this.cleanup = [];
-
-    // Stop loaders
-    this.loaders.stop();
   }
 
   private lifecycle() {

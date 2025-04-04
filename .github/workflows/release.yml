@@ -46,4 +46,4 @@ jobs:
           gh release create "$tag" \
             --title="$tag" \
             --draft \
-            nostr-articles.zip
+            nostr-articles.zip main.js manifest.json styles.css
