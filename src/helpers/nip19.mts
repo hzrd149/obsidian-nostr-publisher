@@ -1,4 +1,4 @@
-import { isHexKey } from "applesauce-core/helpers";
+import { getPubkeyFromDecodeResult, isHexKey } from "applesauce-core/helpers";
 import { nip19 } from "nostr-tools";
 import { hexToArrayBuffer } from "obsidian";
 
@@ -9,4 +9,10 @@ export function normalizePrivateKey(key: string): Uint8Array {
   if (decode.type === "nsec") return decode.data;
 
   throw new Error("Invalid private key");
+}
+
+export function normalizePubkey(key: string): string | undefined {
+  if (isHexKey(key)) return key;
+  const decode = nip19.decode(key);
+  return getPubkeyFromDecodeResult(decode);
 }

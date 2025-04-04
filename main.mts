@@ -3,6 +3,7 @@ import {
   lastValueFrom,
   Observable,
   of,
+  shareReplay,
   skip,
   Subscription,
   switchMap,
@@ -28,6 +29,7 @@ import NostrPluginData, {
 import NostrLoaders from "./src/service/loaders.mjs";
 import { DEFAULT_FALLBACK_RELAYS } from "./src/const.mjs";
 import NostrConnectModal from "./src/components/NostrConnectModal.mjs";
+import Publisher from "./src/service/publisher.mjs";
 
 export default class NostrArticlesPlugin extends Plugin {
   pool = new RelayPool();
@@ -49,6 +51,9 @@ export default class NostrArticlesPlugin extends Plugin {
 
   /** Active users mailboxes */
   mailboxes: Observable<{ inboxes: string[]; outboxes: string[] } | undefined>;
+
+  /** Sub class for managing articles */
+  publisher = new Publisher(this.app, this);
 
   constructor(app: App, manifest: PluginManifest) {
     super(app, manifest);
@@ -75,6 +80,7 @@ export default class NostrArticlesPlugin extends Plugin {
       switchMap((account) =>
         account ? this.queries.mailboxes(account.pubkey) : of(undefined),
       ),
+      shareReplay(1),
     );
   }
 
@@ -101,14 +107,23 @@ export default class NostrArticlesPlugin extends Plugin {
 
     this.addCommand({
       id: "publish-article",
-      name: "Publish",
+      name: "Publish article",
       callback: async () => {
         await this.checkAndPublish();
       },
     });
 
+    // this.addCommand({
+    //   id: "open-article",
+    //   name: "Open article",
+    //   icon: "external-link",
+    //   callback: async () => {
+    //     await this.checkAndPublish();
+    //   },
+    // });
+
     this.addCommand({
-      id: "test-print",
+      id: "show-relays",
       name: "Show connected relays",
       callback: async () => {
         for (let [url, relay] of this.pool.relays) {
@@ -247,6 +262,7 @@ export default class NostrArticlesPlugin extends Plugin {
           const command = commands.get(account.id);
 
           if (!command) {
+            // create command
             commands.set(
               account.id,
               this.addCommand({
@@ -255,9 +271,22 @@ export default class NostrArticlesPlugin extends Plugin {
                 callback: () => this.accounts.setActive(account),
               }),
             );
-          } else {
-            // update name
-            command.name = `Switch to ${account.metadata?.name}`;
+          } else if (
+            account.metadata?.name &&
+            !command.name.contains(account.metadata?.name)
+          ) {
+            // Remove old command
+            this.removeCommand(command.id);
+
+            // Create new command
+            commands.set(
+              account.id,
+              this.addCommand({
+                id: `switch-account-${account.id}`,
+                name: `Switch to ${account.metadata.name}`,
+                callback: () => this.accounts.setActive(account),
+              }),
+            );
           }
         }
       }),
@@ -316,7 +345,7 @@ export default class NostrArticlesPlugin extends Plugin {
         return;
       }
 
-      new ConfirmPublishModal(this.app, this.pool, activeFile, this).open();
+      new ConfirmPublishModal(this.app, activeFile, this).open();
     } else {
       new Notice("❗️ No note is currently active. Click into a note.");
     }

@@ -1,4 +1,4 @@
-import { toArray, Subscription, lastValueFrom } from "rxjs";
+import { Subscription } from "rxjs";
 import {
   ButtonComponent,
   Modal,
@@ -8,38 +8,27 @@ import {
   TextAreaComponent,
   TextComponent,
 } from "obsidian";
-import { RelayPool } from "applesauce-relay";
-import {
-  includeHashtags,
-  includeSingletonTag,
-  setContent,
-} from "applesauce-factory/operations/event";
 import { unixNow } from "applesauce-core/helpers";
-import { kinds } from "nostr-tools";
 
 import NostrArticlesPlugin from "../../main.mjs";
+import { NostrFrontmatter } from "../schema/frontmatter.mjs";
 
 export default class ConfirmPublishModal extends Modal {
-  plugin: NostrArticlesPlugin;
-
   private cleanup: Subscription[] = [];
 
   constructor(
     app: App,
-    private pool: RelayPool,
-    private file: TFile,
-    plugin: NostrArticlesPlugin,
+    public readonly file: TFile,
+    public readonly plugin: NostrArticlesPlugin,
   ) {
     super(app);
-    this.plugin = plugin;
   }
 
   async onOpen() {
     let { contentEl } = this;
 
-    const frontmatter = this.app.metadataCache.getFileCache(
-      this.file,
-    )?.frontmatter;
+    const frontmatter = this.app.metadataCache.getFileCache(this.file)
+      ?.frontmatter as NostrFrontmatter;
 
     if (this.file.extension !== "md") {
       new Notice("❌ Only markdown files can be published.");
@@ -47,10 +36,7 @@ export default class ConfirmPublishModal extends Modal {
       return;
     }
 
-    const frontmatterRegex = /---\s*[\s\S]*?\s*---/g;
-    const content = (await this.app.vault.read(this.file))
-      .replace(frontmatterRegex, "")
-      .trim();
+    const content = await this.plugin.publisher.getArticleContent(this.file);
 
     let hashtags: string[] = [];
 
@@ -67,22 +53,20 @@ export default class ConfirmPublishModal extends Modal {
     const properties = {
       title: frontmatter?.title || this.file.basename,
       summary: frontmatter?.summary || "",
-      image: isValidURL(frontmatter?.image) ? frontmatter?.image : "",
+      image: frontmatter?.image,
       tags: frontmatter?.tags || contentHashtags,
       identifier: frontmatter?.identifier || fallbackIdentifier,
       published_at: frontmatter?.published_at || unixNow(),
     };
 
-    for (const tag of properties.tags) {
-      hashtags.push(tag);
-    }
+    for (const tag of properties.tags) hashtags.push(tag);
 
     this.setTitle("Publish");
 
     contentEl.createEl("h6", { text: `Title` });
     let titleText = new TextComponent(contentEl)
-      .setPlaceholder(`${properties.title}`)
-      .setValue(`${properties.title}`);
+      .setPlaceholder(properties.title)
+      .setValue(properties.title);
 
     contentEl.createEl("h6", { text: `Tags` });
     const tagContainer = contentEl.createEl("div");
@@ -237,73 +221,60 @@ export default class ConfirmPublishModal extends Modal {
       .setButtonText("Confirm and Publish")
       .setCta()
       .onClick(async () => {
+        // Get final values
+        const title = titleText.getValue();
+        const summary = summaryText.getValue();
+        const image = properties.image;
+        const identifier = properties.identifier;
+        const published_at = properties.published_at;
+        const pubkey =
+          frontmatter.pubkey || this.plugin.accounts.active?.pubkey;
+
         if (relays.length === 0) {
           new Notice("❌ No relays found.");
           return;
         }
-
-        if (
-          confirm(`Are you sure you want to publish this article to Nostr?`)
-        ) {
-          // Disable the button and change the text to show a loading state
-          publishButton.setButtonText("Publishing...").setDisabled(true);
-
-          try {
-            const title = titleText.getValue();
-            const summary = summaryText.getValue();
-            const image = properties.image;
-            const identifier = properties.identifier;
-            const published_at = properties.published_at;
-
-            const draft = await this.plugin.factory.build(
-              {
-                kind: kinds.LongFormArticle,
-              },
-              includeSingletonTag(["d", identifier], true),
-              includeSingletonTag(["title", title], true),
-              summary
-                ? includeSingletonTag(["summary", summary], true)
-                : undefined,
-              image ? includeSingletonTag(["image", image], true) : undefined,
-              includeSingletonTag(["published_at", String(published_at)]),
-              setContent(content),
-              includeHashtags(hashtags),
-            );
-
-            publishButton.setButtonText("Signing...");
-
-            const signed = await this.plugin.factory.sign(draft);
-
-            publishButton.setButtonText("Saving changes...");
-
-            await this.app.fileManager.processFrontMatter(this.file, (fm) => {
-              fm.title = title;
-              fm.pubkey = signed.pubkey;
-              if (summary) fm.summary = summary;
-              if (image) fm.image = image;
-              if (hashtags.length > 0) fm.tags = hashtags;
-              fm.identifier = identifier;
-              fm.published_at = unixNow();
-            });
-
-            publishButton.setButtonText("Publishing...");
-
-            const results = await lastValueFrom(
-              this.plugin.pool.event(relays, signed).pipe(toArray()),
-            );
-
-            new Notice(
-              `Published to ${results.filter((r) => r.ok).length} relays.`,
-            );
-
-            this.close();
-          } catch (error) {
-            console.error(error);
-            new Notice(`❌ Failed to publish article to Nostr.`);
-          }
-          publishButton.setButtonText("Confirm and Publish").setDisabled(false);
-          this.close();
+        if (!pubkey) {
+          new Notice("❌ No active nostr account.");
+          return;
         }
+
+        try {
+          publishButton.setDisabled(true).setButtonText("Saving changes...");
+
+          // Save frontmatter changes
+          await this.app.fileManager.processFrontMatter(this.file, (fm) => {
+            fm.title = title;
+            fm.pubkey = pubkey;
+            if (summary) fm.summary = summary;
+            if (image) fm.image = image;
+            if (hashtags.length > 0) fm.tags = hashtags;
+            fm.identifier = identifier;
+            fm.published_at = published_at;
+          });
+
+          const draft = await this.plugin.publisher.createArticleDraft(
+            this.file,
+          );
+
+          publishButton.setButtonText("Signing...");
+          const signed = await this.plugin.publisher.signArticleDraft(draft);
+
+          publishButton.setButtonText("Publishing...");
+          const results = await this.plugin.publisher.publishArticle(signed);
+
+          new Notice(
+            `Published to ${results.filter((r) => r.ok).length} relays.`,
+          );
+
+          this.close();
+        } catch (error) {
+          console.error(error);
+          if (error instanceof Error) new Notice(`❌ ${error.message}`);
+          else new Notice(`❌ Failed to publish article to Nostr.`);
+        }
+        publishButton.setButtonText("Confirm and Publish").setDisabled(false);
+        this.close();
       });
 
     contentEl.classList.add("publish-modal-content");
