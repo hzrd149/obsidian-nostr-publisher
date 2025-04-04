@@ -35,6 +35,9 @@ importers:
       axios:
         specifier: ^1.8.4
         version: 1.8.4
+      blossom-client-sdk:
+        specifier: ^3.0.1
+        version: 3.0.1
       nostr-tools:
         specifier: ^2.12.0
         version: 2.12.0(typescript@5.2.2)
@@ -97,8 +100,14 @@ packages:
   '@cashu/cashu-ts@2.0.0-rc1':
     resolution: {integrity: sha512-39459l7x/fUMEgOsCdGLLl6rMekO4nbv+wEuavmyElh8hgN8t66wcb29AJvdFTb6K3lPACKF2rs/jAlPYrN7Ng==}
 
+  '@cashu/cashu-ts@2.4.1':
+    resolution: {integrity: sha512-9lDHP5GtWvC/mIDPRg5KdRQAsqoYYm93efPyfgDtRd9eW1BhWrzLuS0sN1WVkL9noAXCZoWjjpX8TElMXhpFhA==}
+
   '@cashu/crypto@0.2.7':
     resolution: {integrity: sha512-1aaDfUjiHNXoJqg8nW+341TLWV9W28DsVNXJUKcHL0yAmwLs5+56SSnb8LLDJzPamLVoYL0U0bda91klAzptig==}
+
+  '@cashu/crypto@0.3.4':
+    resolution: {integrity: sha512-mfv1Pj4iL1PXzUj9NKIJbmncCLMqYfnEDqh/OPxAX0nNBt6BOnVJJLjLWFlQeYxlnEfWABSNkrqPje1t5zcyhA==}
 
   '@changesets/apply-release-plan@7.0.10':
     resolution: {integrity: sha512-wNyeIJ3yDsVspYvHnEz1xQDq18D9ifed3lI+wxRQRK4pArUcuHgCTrHv0QRnnwjhVCQACxZ+CBih3wgOct6UXw==}
@@ -461,6 +470,10 @@ packages:
   better-path-resolve@1.0.0:
     resolution: {integrity: sha512-pbnl5XzGBdrFU/wT4jqmJVPn2B6UHPBOhzMQkY/SPUPB6QtUXtmBHBIwCbXJol93mOpGMnQyP/+BB19q04xj7g==}
     engines: {node: '>=4'}
+
+  blossom-client-sdk@3.0.1:
+    resolution: {integrity: sha512-LG4evwVH8LDRTUoc+1C/o68ITDzK68kuqLwZv4aTBlm9cEtFAWBDtrZeajnqNAN77dTFA0U1QX82GLt6CCkMKw==}
+    engines: {node: '>=18'}
 
   braces@3.0.3:
     resolution: {integrity: sha512-yQbXgO/OSZVD2IsiLlro+7Hf6Q18EJrKSEsdoMzKePKXct3gvD8oLcOQdIzGupr5Fj+EDe8gO/lxc1BzfMpxvA==}
@@ -1076,7 +1089,22 @@ snapshots:
       '@scure/bip32': 1.6.2
       buffer: 6.0.3
 
+  '@cashu/cashu-ts@2.4.1':
+    dependencies:
+      '@cashu/crypto': 0.3.4
+      '@noble/curves': 1.8.1
+      '@noble/hashes': 1.7.1
+      buffer: 6.0.3
+
   '@cashu/crypto@0.2.7':
+    dependencies:
+      '@noble/curves': 1.8.1
+      '@noble/hashes': 1.7.1
+      '@scure/bip32': 1.6.2
+      '@scure/bip39': 1.5.4
+      buffer: 6.0.3
+
+  '@cashu/crypto@0.3.4':
     dependencies:
       '@noble/curves': 1.8.1
       '@noble/hashes': 1.7.1
@@ -1549,6 +1577,11 @@ snapshots:
   better-path-resolve@1.0.0:
     dependencies:
       is-windows: 1.0.2
+
+  blossom-client-sdk@3.0.1:
+    dependencies:
+      '@cashu/cashu-ts': 2.4.1
+      '@noble/hashes': 1.7.1
 
   braces@3.0.3:
     dependencies:

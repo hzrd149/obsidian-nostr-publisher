@@ -33,6 +33,7 @@
     "applesauce-relay": "next",
     "applesauce-signers": "next",
     "axios": "^1.8.4",
+    "blossom-client-sdk": "^3.0.1",
     "nostr-tools": "^2.12.0",
     "qrcode-svg": "^1.1.0",
     "rxjs": "^7.8.2",

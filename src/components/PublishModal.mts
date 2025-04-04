@@ -7,12 +7,15 @@ import {
   App,
   TextAreaComponent,
   TextComponent,
+  Setting,
+  EmbedCache,
 } from "obsidian";
 import { unixNow } from "applesauce-core/helpers";
+import { BlobDescriptor } from "blossom-client-sdk";
+import { kinds } from "nostr-tools";
 
 import NostrArticlesPlugin from "../../main.mjs";
 import { NostrFrontmatter } from "../schema/frontmatter.mjs";
-import { kinds } from "nostr-tools";
 
 export default class PublishModal extends Modal {
   private cleanup: Subscription[] = [];
@@ -28,6 +31,16 @@ export default class PublishModal extends Modal {
   async onOpen() {
     let { contentEl } = this;
 
+    // Subscribe to app settings
+    let relays: string[] = [];
+    this.cleanup.push(
+      this.plugin.mailboxes.subscribe((mailboxes) => {
+        if (mailboxes) relays = mailboxes.outboxes;
+      }),
+    );
+    let servers: string[] = [];
+    this.cleanup.push(this.plugin.mediaServers.subscribe((s) => (servers = s)));
+
     const frontmatter = this.app.metadataCache.getFileCache(this.file)
       ?.frontmatter as NostrFrontmatter | null;
 
@@ -37,12 +50,12 @@ export default class PublishModal extends Modal {
       return;
     }
 
-    const content = await this.plugin.publisher.getArticleContent(this.file);
+    const rawContent = await this.app.vault.read(this.file);
 
     let hashtags: string[] = [];
 
     const regex = /#\w+/g;
-    const matches = content.match(regex) || [];
+    const matches = rawContent.match(regex) || [];
     const contentHashtags = matches.map((match: string) => match.slice(1));
 
     const today = new Date();
@@ -103,6 +116,16 @@ export default class PublishModal extends Modal {
     let summaryText = new TextAreaComponent(contentEl)
       .setPlaceholder("Optional brief summary of your article...")
       .setValue(properties.summary);
+
+    let uploadMedia = servers.length > 0;
+    new Setting(contentEl)
+      .setName("Upload media")
+      .setDesc("Upload embed images to blossom servers.")
+      .addToggle((toggle) => {
+        toggle.setTooltip("Upload media to a blossom servers.");
+        toggle.setValue(uploadMedia);
+        toggle.onChange((value) => (uploadMedia = value));
+      });
 
     // let image: any | null = null;
 
@@ -211,13 +234,6 @@ export default class PublishModal extends Modal {
     });
     info.addClass("publish-modal-info");
 
-    let relays: string[] = [];
-    this.cleanup.push(
-      this.plugin.mailboxes.subscribe((mailboxes) => {
-        if (mailboxes) relays = mailboxes.outboxes;
-      }),
-    );
-
     const isUpdate =
       !!frontmatter?.pubkey &&
       !!frontmatter?.identifier &&
@@ -263,8 +279,37 @@ export default class PublishModal extends Modal {
             fm.published_at = published_at;
           });
 
+          const uploads = new Map<EmbedCache, BlobDescriptor>();
+          if (uploadMedia) {
+            if (servers.length === 0) {
+              new Notice("❌ No media servers found.");
+              return;
+            }
+
+            const embeds = this.plugin.publisher.getArticleEmbeddedMedia(
+              this.file,
+            );
+
+            if (embeds && embeds?.length > 0) {
+              publishButton.setButtonText("Uploading media...");
+
+              for (const media of embeds) {
+                new Notice(`Uploading ${media.link}...`);
+
+                const blob = await this.plugin.publisher.uploadMediaEmbed(
+                  this.file,
+                  media,
+                  servers,
+                );
+
+                uploads.set(media, blob);
+              }
+            }
+          }
+
           const draft = await this.plugin.publisher.createArticleDraft(
             this.file,
+            uploads,
           );
 
           publishButton.setButtonText("Signing...");

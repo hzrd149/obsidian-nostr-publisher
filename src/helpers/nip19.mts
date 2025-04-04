@@ -12,7 +12,11 @@ export function normalizePrivateKey(key: string): Uint8Array {
 }
 
 export function normalizePubkey(key: string): string | undefined {
-  if (isHexKey(key)) return key;
-  const decode = nip19.decode(key);
-  return getPubkeyFromDecodeResult(decode);
+  try {
+    if (isHexKey(key)) return key;
+    const decode = nip19.decode(key);
+    return getPubkeyFromDecodeResult(decode);
+  } catch (error) {
+    return undefined;
+  }
 }

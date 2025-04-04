@@ -37,6 +37,7 @@ export class NostrWriterSettingTab extends PluginSettingTab {
         });
       });
 
+    // Display all accounts
     for (const account of this.plugin.accounts.accounts) {
       new Setting(this.containerEl)
         .setName(account.metadata?.name || account.pubkey.slice(0, 8))
@@ -60,7 +61,7 @@ export class NostrWriterSettingTab extends PluginSettingTab {
     }
 
     new Setting(this.containerEl)
-      .setName("Local Relay")
+      .setName("Local relay")
       .setDesc(
         "A local nostr relay used to search for events and save articles.",
       )
@@ -76,14 +77,14 @@ export class NostrWriterSettingTab extends PluginSettingTab {
 
     let relayInput: TextComponent;
 
-    containerEl.createEl("h5", { text: "Relay Configuration" });
+    containerEl.createEl("h5", { text: "Nostr Relays" });
     new Setting(this.containerEl)
-      .setDesc("Add a relay URL to settings")
-      .setName("Add Relay")
-      .addText((relayUrlInput) => {
-        relayUrlInput.setPlaceholder("wss://fav.relay.com");
-        relayUrlInput.onChange(() => {
-          relayInput = relayUrlInput;
+      .setDesc("Add a relay for publishing.")
+      .setName("Add relay")
+      .addText((text) => {
+        text.setPlaceholder("wss://fav.relay.com");
+        text.onChange(() => {
+          relayInput = text;
         });
       })
       .addButton((btn) => {
@@ -104,14 +105,15 @@ export class NostrWriterSettingTab extends PluginSettingTab {
               this.refreshDisplay();
               relayInput.setValue("");
             } else {
-              new Notice("Invalid URL added");
+              new Notice("Invalid URL");
             }
           } catch {
-            new Notice("No URL added");
+            new Notice("No URL");
           }
         });
       });
 
+    // Display all plugin relays
     for (const url of this.plugin.pluginRelays.value) {
       new Setting(this.containerEl).setName(url).addButton((btn) => {
         btn.setIcon("trash");
@@ -124,6 +126,64 @@ export class NostrWriterSettingTab extends PluginSettingTab {
           ) {
             this.plugin.pluginRelays.next(
               this.plugin.pluginRelays.value.filter((r) => r !== url),
+            );
+
+            this.refreshDisplay();
+            new Notice(`${url} removed.`);
+          }
+        });
+      });
+    }
+
+    containerEl.createEl("br");
+
+    let serverInput: TextComponent;
+
+    containerEl.createEl("h5", { text: "Blossom Servers" });
+    new Setting(this.containerEl)
+      .setDesc("Add a blossom server for media uploads.")
+      .setName("Add server")
+      .addText((text) => {
+        text.setPlaceholder("https://cdn.example.com");
+        text.onChange(() => {
+          serverInput = text;
+        });
+      })
+      .addButton((btn) => {
+        btn.setIcon("plus");
+        btn.setCta();
+        btn.setTooltip("Add a blossom server");
+        btn.onClick(async () => {
+          try {
+            let url = serverInput.getValue();
+            if (isValidUrl(url)) {
+              this.plugin.mediaServers.next([
+                ...this.plugin.mediaServers.value,
+                url,
+              ]);
+
+              new Notice(`Added ${url} to media servers.`);
+
+              this.refreshDisplay();
+              serverInput.setValue("");
+            } else {
+              new Notice("Invalid URL");
+            }
+          } catch {
+            new Notice("No URL");
+          }
+        });
+      });
+
+    // Display all media servers
+    for (const url of this.plugin.mediaServers.value) {
+      new Setting(this.containerEl).setName(url).addButton((btn) => {
+        btn.setIcon("trash");
+        btn.setTooltip("Remove this server");
+        btn.onClick(async () => {
+          if (confirm("Are you sure you want to remove this server?")) {
+            this.plugin.mediaServers.next(
+              this.plugin.mediaServers.value.filter((r) => r !== url),
             );
 
             this.refreshDisplay();

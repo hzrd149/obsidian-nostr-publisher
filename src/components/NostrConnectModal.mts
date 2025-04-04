@@ -1,4 +1,4 @@
-import { App, Modal, Notice, Setting } from "obsidian";
+import { App, Modal, Notice, Setting, TextAreaComponent } from "obsidian";
 import { NostrConnectSigner, Permission } from "applesauce-signers";
 import { NostrConnectAccount } from "applesauce-accounts/accounts";
 import QRCode from "qrcode-svg";
@@ -63,14 +63,13 @@ export default class NostrConnectModal extends Modal {
       text: "Connect using a bunker URI",
     });
 
-    let bunkerURI = "";
-    this.contentEl.createEl("textarea", {}, (el) => {
-      el.style.width = "100%";
-      el.setAttribute("spellcheck", "false");
-      el.setAttribute("placeholder", "bunker://");
-      el.addEventListener("change", (e) => {
-        bunkerURI = (e.target as HTMLTextAreaElement).value;
-      });
+    const bunkerURI = new TextAreaComponent(this.contentEl)
+      .setPlaceholder("bunker://")
+      .setValue("");
+    bunkerURI.inputEl.setCssStyles({
+      width: "100%",
+      height: "75px",
+      marginBottom: "10px",
     });
 
     new Setting(this.contentEl).addButton((btn) => {
@@ -79,19 +78,20 @@ export default class NostrConnectModal extends Modal {
       btn.setCta();
 
       btn.onClick(async () => {
-        if (!bunkerURI) {
+        const uri = bunkerURI.getValue();
+        if (!uri) {
           new Notice("Add a bunker URI");
           return;
         }
 
         try {
-          NostrConnectSigner.parseBunkerURI(bunkerURI);
+          NostrConnectSigner.parseBunkerURI(uri);
         } catch (error) {
           new Notice("Invalid bunker URI");
           return;
         }
 
-        const account = await this.connectBunker(bunkerURI);
+        const account = await this.connectBunker(uri);
         this.onConnect(account);
         this.close();
       });

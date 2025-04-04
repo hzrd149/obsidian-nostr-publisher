@@ -5,7 +5,6 @@ import {
   debounceTime,
   filter,
   firstValueFrom,
-  fromEvent,
   lastValueFrom,
   map,
   Observable,
@@ -22,6 +21,7 @@ import { AccountManager } from "applesauce-accounts";
 import { registerCommonAccountTypes } from "applesauce-accounts/accounts";
 import { NostrConnectSigner } from "applesauce-signers/signers/nostr-connect-signer";
 import {
+  BLOSSOM_SERVER_LIST_KIND,
   getDisplayName,
   getProfileContent,
   isSafeRelayURL,
@@ -59,6 +59,7 @@ export default class NostrArticlesPlugin extends Plugin {
 
   localRelay = new BehaviorSubject<string>("");
   pluginRelays = new BehaviorSubject<string[]>(DEFAULT_PLUGIN_RELAYS);
+  mediaServers = new BehaviorSubject<string[]>([]);
   lookupRelays = new BehaviorSubject<string[]>([]);
 
   /** Active users mailboxes */
@@ -118,7 +119,7 @@ export default class NostrArticlesPlugin extends Plugin {
     this.lookupRelays.next(data.lookupRelays);
     this.pluginRelays.next(data.pluginRelays);
     this.localRelay.next(data.localRelay ?? "");
-
+    this.mediaServers.next(data.mediaServers);
     // Load accounts
     this.accounts.fromJSON(data.accounts);
     if (data.active)
@@ -227,6 +228,11 @@ export default class NostrArticlesPlugin extends Plugin {
               kind: kinds.RelayList,
               relays,
             });
+            this.loaders.replaceable.next({
+              pubkey: account.pubkey,
+              kind: BLOSSOM_SERVER_LIST_KIND,
+              relays,
+            });
           }
         },
       ),
@@ -305,6 +311,11 @@ export default class NostrArticlesPlugin extends Plugin {
     this.cleanup.push(
       this.localRelay.subscribe((relay) =>
         this.updateData({ localRelay: relay }),
+      ),
+    );
+    this.cleanup.push(
+      this.mediaServers.subscribe((servers) =>
+        this.updateData({ mediaServers: servers }),
       ),
     );
   }
