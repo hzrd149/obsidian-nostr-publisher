@@ -1,8 +1,8 @@
 # Obsidian Nostr Articles
 
-Publish and manage nostr articles from Obsidian
+> Publish and manage nostr articles from Obsidian
 
-Forked from the [nostr-writer](https://github.com/jamesmagoo/nostr-writer) plugin.
+A rewrite of [nostr-writer](https://github.com/jamesmagoo/nostr-writer) plugin using Applesauce and focused entirely on nostr articles.
 
 ## Install / Update
 
