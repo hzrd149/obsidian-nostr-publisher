@@ -27,6 +27,16 @@ jobs:
       - name: Build plugin
         run: pnpm build
 
+      - name: Create plugin zip
+        run: |
+          zip -r nostr-articles.zip main.js manifest.json styles.css
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nostr-articles.zip
+          path: nostr-articles.zip
+
       - name: Create release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -36,4 +46,4 @@ jobs:
           gh release create "$tag" \
             --title="$tag" \
             --draft \
-            main.js manifest.json styles.css
+            nostr-articles.zip
