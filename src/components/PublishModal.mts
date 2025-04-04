@@ -12,8 +12,9 @@ import { unixNow } from "applesauce-core/helpers";
 
 import NostrArticlesPlugin from "../../main.mjs";
 import { NostrFrontmatter } from "../schema/frontmatter.mjs";
+import { kinds } from "nostr-tools";
 
-export default class ConfirmPublishModal extends Modal {
+export default class PublishModal extends Modal {
   private cleanup: Subscription[] = [];
 
   constructor(
@@ -28,7 +29,7 @@ export default class ConfirmPublishModal extends Modal {
     let { contentEl } = this;
 
     const frontmatter = this.app.metadataCache.getFileCache(this.file)
-      ?.frontmatter as NostrFrontmatter;
+      ?.frontmatter as NostrFrontmatter | null;
 
     if (this.file.extension !== "md") {
       new Notice("❌ Only markdown files can be published.");
@@ -217,8 +218,17 @@ export default class ConfirmPublishModal extends Modal {
       }),
     );
 
+    const isUpdate =
+      !!frontmatter?.pubkey &&
+      !!frontmatter?.identifier &&
+      this.plugin.events.hasReplaceable(
+        kinds.LongFormArticle,
+        frontmatter.pubkey,
+        frontmatter.identifier,
+      );
+
     let publishButton = new ButtonComponent(contentEl)
-      .setButtonText("Confirm and Publish")
+      .setButtonText(isUpdate ? "Update Article" : "Publish Article")
       .setCta()
       .onClick(async () => {
         // Get final values
@@ -228,7 +238,7 @@ export default class ConfirmPublishModal extends Modal {
         const identifier = properties.identifier;
         const published_at = properties.published_at;
         const pubkey =
-          frontmatter.pubkey || this.plugin.accounts.active?.pubkey;
+          frontmatter?.pubkey || this.plugin.accounts.active?.pubkey;
 
         if (relays.length === 0) {
           new Notice("❌ No relays found.");

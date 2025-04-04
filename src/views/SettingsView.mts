@@ -59,6 +59,19 @@ export class NostrWriterSettingTab extends PluginSettingTab {
         });
     }
 
+    new Setting(this.containerEl)
+      .setName("Local Relay")
+      .setDesc(
+        "A local nostr relay used to search for events and save articles.",
+      )
+      .addText((text) => {
+        text.setPlaceholder("ws://localhost:4869");
+        text.setValue(this.plugin.localRelay.value);
+        text.onChange((value) => {
+          this.plugin.localRelay.next(value);
+        });
+      });
+
     containerEl.createEl("br");
 
     let relayInput: TextComponent;
@@ -81,8 +94,8 @@ export class NostrWriterSettingTab extends PluginSettingTab {
           try {
             let addedRelayUrl = relayInput.getValue();
             if (isValidUrl(addedRelayUrl)) {
-              this.plugin.fallbackRelays.next([
-                ...this.plugin.fallbackRelays.value,
+              this.plugin.pluginRelays.next([
+                ...this.plugin.pluginRelays.value,
                 addedRelayUrl,
               ]);
 
@@ -99,7 +112,7 @@ export class NostrWriterSettingTab extends PluginSettingTab {
         });
       });
 
-    for (const url of this.plugin.fallbackRelays.value) {
+    for (const url of this.plugin.pluginRelays.value) {
       new Setting(this.containerEl).setName(url).addButton((btn) => {
         btn.setIcon("trash");
         btn.setTooltip("Remove this relay");
@@ -109,44 +122,16 @@ export class NostrWriterSettingTab extends PluginSettingTab {
               "Are you sure you want to delete this relay? This cannot be undone.",
             )
           ) {
-            this.plugin.fallbackRelays.next(
-              this.plugin.fallbackRelays.value.filter((r) => r !== url),
+            this.plugin.pluginRelays.next(
+              this.plugin.pluginRelays.value.filter((r) => r !== url),
             );
 
             this.refreshDisplay();
-            new Notice("Relay successfully deleted.");
+            new Notice(`${url} removed.`);
           }
         });
       });
     }
-
-    //   containerEl.createEl("h5", { text: "Support" });
-    //   new Setting(this.containerEl)
-    //     .setDesc(
-    //       "Has this plugin enhanced your workflow? Say thanks as a one-time payment and zap/buy me a coffee.",
-    //     )
-    //     .addButton((bt) => {
-    //       bt.setTooltip("Copy 20k sats lightning invoice")
-    //         .setIcon("zap")
-    //         .setCta()
-    //         .onClick(() => {
-    //           if (privateKeyField) {
-    //             navigator.clipboard.writeText(
-    //               "lnbc200u1pjvu03dpp5x20p0q5tdwylg5hsqw3av6qxufah0y64efldazmgad2rsffgda8qdpdfehhxarjypthy6t5v4ezqnmzwd5kg6tpdcs9qmr4va5kucqzzsxqyz5vqsp5w55p4tzawyfz5fasflmsvdfnnappd6hqnw9p7y2p0nl974f0mtkq9qyyssqq6gvpnvvuftqsdqyxzn9wrre3qfkpefzz6kqwssa3pz8l9mzczyq4u7qdc09jpatw9ekln9gh47vxrvx6zg6vlsqw7pq4a7kvj4ku4qpdrflwj",
-    //             );
-    //             new Notice("Lightning Invoice Address Copied!⚡️");
-    //             setTimeout(() => {
-    //               new Notice("Thank You 🤝");
-    //             }, 500);
-    //             setTimeout(() => {
-    //               new Notice("Stay Humble ⚖️");
-    //             }, 1000);
-    //             setTimeout(() => {
-    //               new Notice("Stack Sats ⚡️");
-    //             }, 1500);
-    //           }
-    //         });
-    //     })
   }
 }
 

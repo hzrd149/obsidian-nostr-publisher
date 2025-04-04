@@ -1,6 +1,13 @@
 import {
   BehaviorSubject,
+  bufferTime,
+  combineLatest,
+  debounceTime,
+  filter,
+  firstValueFrom,
+  fromEvent,
   lastValueFrom,
+  map,
   Observable,
   of,
   shareReplay,
@@ -14,24 +21,29 @@ import { onlyEvents, RelayPool } from "applesauce-relay";
 import { AccountManager } from "applesauce-accounts";
 import { registerCommonAccountTypes } from "applesauce-accounts/accounts";
 import { NostrConnectSigner } from "applesauce-signers/signers/nostr-connect-signer";
-import { getDisplayName, getProfileContent } from "applesauce-core/helpers";
+import {
+  getDisplayName,
+  getProfileContent,
+  isSafeRelayURL,
+} from "applesauce-core/helpers";
 import { EventStore, QueryStore } from "applesauce-core";
 import { EventFactory } from "applesauce-factory";
 import { ActionHub } from "applesauce-actions";
 import { Filter, kinds, nip19, NostrEvent } from "nostr-tools";
 
-import ConfirmPublishModal from "./src/components/PublishNewModal.mjs";
+import PublishModal from "./src/components/PublishModal.mjs";
 import { NostrWriterSettingTab } from "./src/views/SettingsView.mjs";
-import { PUBLISHED_VIEW } from "./src/views/PublishedView.mjs";
 import NostrPluginData, {
   TNostrPluginData,
 } from "./src/schema/plugin-data.mjs";
 import NostrLoaders from "./src/service/loaders.mjs";
-import { DEFAULT_FALLBACK_RELAYS } from "./src/const.mjs";
+import { DEFAULT_PLUGIN_RELAYS } from "./src/const.mjs";
 import NostrConnectModal from "./src/components/NostrConnectModal.mjs";
 import Publisher from "./src/service/publisher.mjs";
 
 export default class NostrArticlesPlugin extends Plugin {
+  data = new BehaviorSubject<TNostrPluginData>(NostrPluginData.parse({}));
+
   pool = new RelayPool();
   accounts = new AccountManager<{ name?: string }>();
 
@@ -44,12 +56,13 @@ export default class NostrArticlesPlugin extends Plugin {
   actions = new ActionHub(this.events, this.factory);
 
   private cleanup: Subscription[] = [];
-  private data?: TNostrPluginData;
 
-  fallbackRelays = new BehaviorSubject<string[]>(DEFAULT_FALLBACK_RELAYS);
+  localRelay = new BehaviorSubject<string>("");
+  pluginRelays = new BehaviorSubject<string[]>(DEFAULT_PLUGIN_RELAYS);
   lookupRelays = new BehaviorSubject<string[]>([]);
 
   /** Active users mailboxes */
+  publishRelays: Observable<string[]>;
   mailboxes: Observable<{ inboxes: string[]; outboxes: string[] } | undefined>;
 
   /** Sub class for managing articles */
@@ -80,21 +93,35 @@ export default class NostrArticlesPlugin extends Plugin {
       switchMap((account) =>
         account ? this.queries.mailboxes(account.pubkey) : of(undefined),
       ),
+    );
+    this.publishRelays = combineLatest([
+      this.pluginRelays,
+      this.localRelay,
+      this.mailboxes,
+    ]).pipe(
+      map(([pluginRelays, localRelay, mailboxes]) =>
+        [localRelay, ...pluginRelays, ...(mailboxes?.outboxes ?? [])].filter(
+          isSafeRelayURL,
+        ),
+      ),
+      // share latest value and make sync
       shareReplay(1),
     );
   }
 
   async onload() {
     // Load plugin settings
-    this.data = NostrPluginData.parse((await this.loadData()) ?? {});
+    const data = NostrPluginData.parse((await this.loadData()) ?? {});
+    this.data.next(data);
 
     // load settings
-    this.lookupRelays.next(this.data.lookupRelays);
-    this.fallbackRelays.next(this.data.fallbackRelays);
+    this.lookupRelays.next(data.lookupRelays);
+    this.pluginRelays.next(data.pluginRelays);
+    this.localRelay.next(data.localRelay ?? "");
 
     // Load accounts
-    this.accounts.fromJSON(this.data.accounts);
-    if (this.data.active) this.accounts.setActive(this.data.active);
+    this.accounts.fromJSON(data.accounts);
+    if (data.active) this.accounts.setActive(data.active);
 
     // Start loaders
     this.loaders.start();
@@ -166,10 +193,6 @@ export default class NostrArticlesPlugin extends Plugin {
 
     // Stop loaders
     this.loaders.stop();
-
-    this.app.workspace
-      .getLeavesOfType(PUBLISHED_VIEW)
-      .forEach((leaf) => leaf.detach());
   }
 
   private lifecycle() {
@@ -186,24 +209,24 @@ export default class NostrArticlesPlugin extends Plugin {
 
     // Load profiles for all accounts
     this.cleanup.push(
-      this.accounts.accounts$.subscribe((accounts) => {
-        for (const account of accounts) {
-          console.log(`Loading events for ${account.pubkey}`);
+      combineLatest([this.accounts.accounts$, this.publishRelays]).subscribe(
+        ([accounts, relays]) => {
+          for (const account of accounts) {
+            console.log(`Loading events for ${account.pubkey}`);
 
-          this.loaders.replaceable.next({
-            pubkey: account.pubkey,
-            kind: kinds.Metadata,
-          });
-          this.loaders.replaceable.next({
-            pubkey: account.pubkey,
-            kind: kinds.Contacts,
-          });
-          this.loaders.replaceable.next({
-            pubkey: account.pubkey,
-            kind: kinds.RelayList,
-          });
-        }
-      }),
+            this.loaders.replaceable.next({
+              pubkey: account.pubkey,
+              kind: kinds.Metadata,
+              relays,
+            });
+            this.loaders.replaceable.next({
+              pubkey: account.pubkey,
+              kind: kinds.RelayList,
+              relays,
+            });
+          }
+        },
+      ),
     );
 
     // Update account names when profiles are loaded
@@ -224,10 +247,36 @@ export default class NostrArticlesPlugin extends Plugin {
         } catch (error) {}
       }
     });
+
+    // Load the article event from nostr when a file is opened
+    this.registerEvent(
+      this.app.workspace.on("file-open", async (file) => {
+        if (file && file.extension === "md") {
+          const pointer = this.publisher.getArticleNostrAddress(file);
+
+          // If the file is published as an article try to load it
+          if (pointer) {
+            const relays = await firstValueFrom(this.publishRelays);
+            this.loaders.replaceable.next({
+              ...pointer,
+              relays,
+            });
+          }
+        }
+      }),
+    );
   }
 
   /** Save plugin data when it changes */
   private lifecycleSavePluginData() {
+    // Persist data when it changes
+    this.cleanup.push(
+      this.data
+        .pipe(skip(1), debounceTime(1000))
+        .subscribe((data) => this.saveData(data)),
+    );
+
+    // Update data when accounts change
     this.cleanup.push(
       this.accounts.accounts$.subscribe(() =>
         this.updateData({ accounts: this.accounts.toJSON() }),
@@ -241,14 +290,18 @@ export default class NostrArticlesPlugin extends Plugin {
     );
 
     this.cleanup.push(
-      this.fallbackRelays.subscribe((relays) =>
-        this.updateData({ fallbackRelays: relays }),
+      this.pluginRelays.subscribe((relays) =>
+        this.updateData({ pluginRelays: relays }),
       ),
     );
-
     this.cleanup.push(
       this.lookupRelays.subscribe((relays) =>
         this.updateData({ lookupRelays: relays }),
+      ),
+    );
+    this.cleanup.push(
+      this.localRelay.subscribe((relay) =>
+        this.updateData({ localRelay: relay }),
       ),
     );
   }
@@ -307,29 +360,30 @@ export default class NostrArticlesPlugin extends Plugin {
         if (mailboxes) new Notice(`Found ${mailboxes.inboxes.length} relays`);
       }),
     );
+
+    // Notify the user when articles events are loaded
+    this.cleanup.push(
+      this.accounts.active$
+        .pipe(
+          filter((a) => !!a),
+          switchMap((a) =>
+            this.events.filters({
+              authors: [a.pubkey],
+              kinds: [kinds.LongFormArticle],
+            }),
+          ),
+          bufferTime(1000),
+          filter((events) => events.length > 0),
+        )
+        .subscribe((events) => {
+          new Notice(`Loaded ${events.length} articles`);
+        }),
+    );
   }
 
   private updateData(data: Partial<TNostrPluginData>) {
-    this.data = NostrPluginData.parse({ ...this.data, ...data });
-    this.saveData(this.data);
+    this.data.next(NostrPluginData.parse({ ...this.data.value, ...data }));
   }
-
-  togglePublishedView = async (): Promise<void> => {
-    const existing = this.app.workspace.getLeavesOfType(PUBLISHED_VIEW);
-    if (existing.length) {
-      this.app.workspace.revealLeaf(existing[0]);
-      return;
-    }
-
-    await this.app.workspace.getRightLeaf(false)?.setViewState({
-      type: PUBLISHED_VIEW,
-      active: true,
-    });
-
-    this.app.workspace.revealLeaf(
-      this.app.workspace.getLeavesOfType(PUBLISHED_VIEW)[0],
-    );
-  };
 
   async checkAndPublish() {
     if (!this.accounts.active) {
@@ -345,7 +399,7 @@ export default class NostrArticlesPlugin extends Plugin {
         return;
       }
 
-      new ConfirmPublishModal(this.app, activeFile, this).open();
+      new PublishModal(this.app, activeFile, this).open();
     } else {
       new Notice("❗️ No note is currently active. Click into a note.");
     }
@@ -357,7 +411,7 @@ export default class NostrArticlesPlugin extends Plugin {
         this.accounts.addAccount(account);
         this.accounts.setActive(account);
 
-        new Notice(`${account.metadata?.name} connected`);
+        new Notice(`Account connected`);
         resolve();
       }).open();
     });

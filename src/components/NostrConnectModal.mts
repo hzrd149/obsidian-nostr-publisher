@@ -1,9 +1,10 @@
 import { App, Modal, Notice, Setting } from "obsidian";
-import { NostrConnectSigner } from "applesauce-signers";
+import { NostrConnectSigner, Permission } from "applesauce-signers";
 import { NostrConnectAccount } from "applesauce-accounts/accounts";
 import QRCode from "qrcode-svg";
 
 import { DEFAULT_CONNECT_RELAY } from "../const.mjs";
+import { kinds } from "nostr-tools";
 
 export default class NostrConnectModal extends Modal {
   private signer?: NostrConnectSigner;
@@ -42,7 +43,7 @@ export default class NostrConnectModal extends Modal {
         btn.setButtonText("Connecting...");
 
         try {
-          await this.createAccount(relay);
+          await this.connectAccount(relay);
         } catch (error) {
           btn.setButtonText("Connect");
           btn.setDisabled(false);
@@ -56,13 +57,18 @@ export default class NostrConnectModal extends Modal {
     });
   }
 
-  private async createAccount(relay: string) {
+  private async connectAccount(relay: string) {
     this.contentEl.empty();
 
     // Create new signer
     this.signer = new NostrConnectSigner({ relays: [relay] });
 
-    const uri = this.signer.getNostrConnectURI();
+    const uri = this.signer.getNostrConnectURI({
+      name: "Obsidian Nostr Article",
+      permissions: NostrConnectSigner.buildSigningPermissions([
+        kinds.LongFormArticle,
+      ]),
+    });
 
     // Show connect URI
     new Setting(this.contentEl)
