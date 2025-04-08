@@ -1,9 +1,9 @@
 {
-  "id": "nostr-articles",
-  "name": "Nostr Articles",
+  "id": "nostr-publisher",
+  "name": "Nostr Publisher",
   "version": "0.1.0",
   "minAppVersion": "0.15.0",
-  "description": "Write and publish nostr articles in Obsidian.",
+  "description": "Write and publish Obsidian notes as  nostr articles.",
   "author": "hzrd149",
   "authorUrl": "https://github.com/hzrd149",
   "isDesktopOnly": true

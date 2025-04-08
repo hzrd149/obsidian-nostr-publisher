@@ -1,6 +1,7 @@
 {
-  "name": "nostr-articles",
+  "name": "nostr-publisher",
   "version": "0.1.0",
+  "private": true,
   "description": "Write nostr articles with obsidian",
   "main": "main.js",
   "type": "commonjs",
@@ -19,7 +20,7 @@
     "nostr",
     "publish",
     "obsidian",
-    "articles"
+    "article"
   ],
   "author": "hzrd149",
   "license": "MIT",

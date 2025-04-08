@@ -1,5 +1,5 @@
 ---
-"nostr-articles": minor
+"nostr-publisher": minor
 ---
 
 Upload media to blossom servers

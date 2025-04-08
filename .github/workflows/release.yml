@@ -29,13 +29,13 @@ jobs:
 
       - name: Create plugin zip
         run: |
-          zip -r nostr-articles.zip main.js manifest.json styles.css
+          zip -r nostr-publisher.zip main.js manifest.json styles.css
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nostr-articles.zip
-          path: nostr-articles.zip
+          name: nostr-publisher.zip
+          path: nostr-publisher.zip
 
       - name: Create release
         env:
@@ -46,4 +46,4 @@ jobs:
           gh release create "$tag" \
             --title="$tag" \
             --draft \
-            nostr-articles.zip main.js manifest.json styles.css
+            nostr-publisher.zip main.js manifest.json styles.css
