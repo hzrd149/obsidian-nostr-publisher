@@ -294,7 +294,9 @@ export default class PublishModal extends Modal {
               publishButton.setButtonText("Uploading media...");
 
               for (const media of embeds) {
-                new Notice(`Uploading ${media.link}...`);
+                new Notice(
+                  `Uploading ${media.link} to ${servers.length} servers...`,
+                );
 
                 const blob = await this.plugin.publisher.uploadMediaEmbed(
                   this.file,
