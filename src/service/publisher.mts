@@ -8,13 +8,13 @@ import {
   setContent,
 } from "applesauce-factory/operations/event";
 import { PublishResponse } from "applesauce-relay";
-import { IMAGE_EXT, isImageURL } from "applesauce-core/helpers";
 import { BlobDescriptor, BlossomClient } from "blossom-client-sdk";
 import { multiServerUpload } from "blossom-client-sdk/actions/multi-server";
 
 import { normalizePubkey } from "../helpers/nip19.mjs";
 import NostrArticlesPlugin from "../../main.mjs";
 import { NostrFrontmatter } from "../schema/frontmatter.mjs";
+import { UPLOAD_MEDIA_EXT } from "../const.mjs";
 
 export default class Publisher {
   constructor(
@@ -51,7 +51,7 @@ export default class Publisher {
     if (!embeds) return null;
 
     return embeds.filter((embed) =>
-      IMAGE_EXT.some((ext) => embed.link.endsWith(ext)),
+      UPLOAD_MEDIA_EXT.some((ext) => embed.link.endsWith(ext)),
     );
   }
 
@@ -174,14 +174,21 @@ export default class Publisher {
   ): string {
     const sorted = Array.from(uploads)
       .map(([embed, blob]) => ({ embed, blob }))
-      .sort((a, b) => {
-        if (a.embed.position.start === b.embed.position.start) return 0;
-        else if (a.embed.position.start < b.embed.position.start) return -1;
-        else return 1;
-      });
+      .sort(
+        (a, b) => a.embed.position.start.offset - b.embed.position.start.offset,
+      );
 
-    // TODO: replace the embed links with the blob urls
-
-    return content;
+    // Process embeds in reverse order to preserve positions
+    return sorted.reduceRight((text, { embed, blob }) => {
+      const before = text.slice(0, embed.position.start.offset);
+      const after = text.slice(embed.position.end.offset);
+      return (
+        before +
+        (embed.displayText
+          ? `![${embed.displayText}](${blob.url})`
+          : `![](${blob.url})`) +
+        after
+      );
+    }, content);
   }
 }
