@@ -1,7 +1,7 @@
 {
   "id": "nostr-publisher",
   "name": "Nostr Publisher",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "minAppVersion": "0.15.0",
   "description": "Write and publish Obsidian notes as  nostr articles.",
   "author": "hzrd149",
