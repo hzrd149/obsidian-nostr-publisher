@@ -8,6 +8,7 @@ const NostrPluginData = z.object({
   pluginRelays: z.array(z.string()).default(DEFAULT_PLUGIN_RELAYS),
   lookupRelays: z.array(z.string()).default(DEFAULT_LOOKUP_RELAYS),
   localRelay: z.string().default("ws://localhost:4869").optional(),
+  mediaDownloadFolder: z.string().default("media"),
 });
 
 export type TNostrPluginData = z.infer<typeof NostrPluginData>;

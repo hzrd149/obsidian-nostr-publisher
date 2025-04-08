@@ -38,6 +38,9 @@ importers:
       blossom-client-sdk:
         specifier: ^3.0.1
         version: 3.0.1
+      nanoid:
+        specifier: ^5.1.5
+        version: 5.1.5
       nostr-tools:
         specifier: ^2.12.0
         version: 2.12.0(typescript@5.2.2)

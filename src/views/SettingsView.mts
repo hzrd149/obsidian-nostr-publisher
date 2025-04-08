@@ -9,6 +9,8 @@ import { nip19 } from "nostr-tools";
 
 import NostrArticlesPlugin from "../../main.mjs";
 import { isValidUrl } from "../helpers/url.mjs";
+import { config } from "process";
+import DownloadAllArticlesInputModal from "../components/DownloadAllArticlesInputModal.mjs";
 
 export class NostrWriterSettingTab extends PluginSettingTab {
   plugin: NostrArticlesPlugin;
@@ -192,6 +194,53 @@ export class NostrWriterSettingTab extends PluginSettingTab {
         });
       });
     }
+
+    containerEl.createEl("br");
+
+    containerEl.createEl("h5", { text: "Download Settings" });
+    new Setting(this.containerEl)
+      .setName("Media download folder")
+      .setDesc(
+        "Path where images and media from downloaded articles will be saved (relative to vault root).",
+      )
+      .addText((text) => {
+        text.setPlaceholder("media");
+        text.setValue(this.plugin.data.value.mediaDownloadFolder || "media");
+        text.onChange((value) => {
+          // Update the data in the plugin's data BehaviorSubject
+          this.plugin.data.next({
+            ...this.plugin.data.value,
+            mediaDownloadFolder: value,
+          });
+        });
+      });
+
+    new Setting(this.containerEl)
+      .setName("Download all articles")
+      .setDesc("Download all of your nostr articles to the vault")
+      .addButton((btn) => {
+        btn.setButtonText("Download");
+        btn.setCta();
+        btn.setTooltip("Download all nostr articles to vault");
+        btn.onClick(async () => {
+          // Open the download modal
+          new DownloadAllArticlesInputModal(
+            this.app,
+            this.plugin,
+            async (pointer) => {
+              try {
+                const files =
+                  await this.plugin.downloader.downloadAuthorArticles(pointer);
+                new Notice(`Downloaded ${files.length} articles`);
+              } catch (error) {
+                new Notice(
+                  `Failed to download articles: ${error instanceof Error ? error.message : String(error)}`,
+                );
+              }
+            },
+          ).open();
+        });
+      });
   }
 }
 

@@ -40,7 +40,10 @@ import NostrLoaders from "./src/service/loaders.mjs";
 import { DEFAULT_PLUGIN_RELAYS } from "./src/const.mjs";
 import NostrConnectModal from "./src/components/NostrConnectModal.mjs";
 import Publisher from "./src/service/publisher.mjs";
+import Downloader from "./src/service/downloader.mjs";
 import { UserSearchModal } from "./src/components/UserSearchModal.mjs";
+import DownloadArticleModal from "./src/components/DownloadArticleModal.mjs";
+import DownloadAllArticlesInputModal from "./src/components/DownloadAllArticlesInputModal.mjs";
 
 export default class NostrArticlesPlugin extends Plugin {
   data = new BehaviorSubject<TNostrPluginData>(NostrPluginData.parse({}));
@@ -69,6 +72,9 @@ export default class NostrArticlesPlugin extends Plugin {
 
   /** Sub class for managing articles */
   publisher = new Publisher(this.app, this);
+
+  /** Sub class for downloading articles */
+  downloader = new Downloader(this.app, this);
 
   constructor(app: App, manifest: PluginManifest) {
     super(app, manifest);
@@ -193,7 +199,13 @@ export default class NostrArticlesPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "show-pubkey",
+      id: "download-article",
+      name: "Download article",
+      callback: () => this.downloadArticle(),
+    });
+
+    this.addCommand({
+      id: "show-account-pubkey",
       name: "Show active account pubkey",
       callback: async () => {
         if (!this.accounts.active) {
@@ -447,6 +459,26 @@ export default class NostrArticlesPlugin extends Plugin {
 
         new Notice(`Account connected`);
         resolve();
+      }).open();
+    });
+  }
+
+  /**
+   * Open a modal to download a single article by ID or URL
+   */
+  downloadArticle() {
+    return new Promise<void>((resolve) => {
+      new DownloadArticleModal(this.app, this, async (eventIdOrUrl: string) => {
+        try {
+          const file = await this.downloader.downloadArticle(eventIdOrUrl);
+          new Notice(`Downloaded article to ${file.path}`);
+          resolve();
+        } catch (error) {
+          new Notice(
+            `Failed to download article: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          resolve();
+        }
       }).open();
     });
   }
