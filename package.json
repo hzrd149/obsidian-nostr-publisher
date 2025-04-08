@@ -1,12 +1,13 @@
 {
   "name": "nostr-publisher",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Write nostr articles with obsidian",
   "main": "main.js",
   "type": "commonjs",
   "scripts": {
     "dev": "node esbuild.config.mjs",
+    "prepack": "pnpm build",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
     "version": "node version-bump.mjs && git add manifest.json versions.json",
     "format": "prettier --write ."
