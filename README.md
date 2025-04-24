@@ -30,6 +30,7 @@ WIP
 - [x] Add local relays in settings
 - [x] Support local relay
 - [x] Support NIP-46 bunker signer
+- [ ] Handle including "p", "q" tags for `nostr:` mentions
 - [ ] Add a "View article" command that opens the article in a nostr client using NIP-89
 - [ ] Fix bug with article publishing with old frontmatter
 - [ ] Insert nostr user mentions
