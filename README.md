@@ -42,3 +42,8 @@ WIP
 - [ ] Add option to configure zap splits
 - [ ] Add option to include a developer zap split in the article
 - [ ] Add option to set and upload banner image
+- [ ] Detect if linked media is already uploaded
+
+## Bugs
+
+- [ ] Extra ")" in articles get included in images before them
