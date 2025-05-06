@@ -84,14 +84,14 @@ export default class NostrArticlesPlugin extends Plugin {
 
     // Setup default connection method
     NostrConnectSigner.subscriptionMethod = (
-      filters: Filter[],
       relays: string[],
+      filters: Filter[],
     ) => this.pool.req(relays, filters).pipe(onlyEvents());
 
     // Setup default publish method
     NostrConnectSigner.publishMethod = async (
-      event: NostrEvent,
       relays: string[],
+      event: NostrEvent,
     ) => {
       lastValueFrom(this.pool.event(relays, event).pipe(toArray()));
     };
