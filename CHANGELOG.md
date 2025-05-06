@@ -1,5 +1,11 @@
 # nostr-publisher
 
+## 0.2.1
+
+### Patch Changes
+
+- 45268ec: Bump package dependencies
+
 ## 0.2.0
 
 ### Minor Changes
