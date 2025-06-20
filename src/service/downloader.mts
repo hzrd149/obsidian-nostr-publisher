@@ -134,7 +134,7 @@ export default class Downloader {
     for (const event of loaded) this.plugin.events.add(event);
 
     // Get events from the event store
-    const events = this.plugin.events.getAll({
+    const events = this.plugin.events.getByFilters({
       authors: [pointer.pubkey],
       kinds: [kinds.LongFormArticle],
     });

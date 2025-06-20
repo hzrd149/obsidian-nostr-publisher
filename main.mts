@@ -26,7 +26,7 @@ import {
   getProfileContent,
   isSafeRelayURL,
 } from "applesauce-core/helpers";
-import { EventStore, QueryStore } from "applesauce-core";
+import { EventStore } from "applesauce-core";
 import { EventFactory } from "applesauce-factory";
 import { ActionHub } from "applesauce-actions";
 import { Filter, kinds, nip19, NostrEvent } from "nostr-tools";
@@ -52,9 +52,6 @@ export default class NostrArticlesPlugin extends Plugin {
   accounts = new AccountManager<{ name?: string }>();
 
   events = new EventStore();
-  queries = new QueryStore(this.events);
-
-  loaders = new NostrLoaders(this.pool, this.events);
 
   factory = new EventFactory({ signer: this.accounts.signer });
   actions = new ActionHub(this.events, this.factory);
@@ -69,6 +66,8 @@ export default class NostrArticlesPlugin extends Plugin {
   /** Active users mailboxes */
   publishRelays: Observable<string[]>;
   mailboxes: Observable<{ inboxes: string[]; outboxes: string[] } | undefined>;
+
+  loaders = new NostrLoaders(this.pool, this.events, this.lookupRelays);
 
   /** Sub class for managing articles */
   publisher = new Publisher(this.app, this);
@@ -99,7 +98,7 @@ export default class NostrArticlesPlugin extends Plugin {
     // Setup computed values
     this.mailboxes = this.accounts.active$.pipe(
       switchMap((account) =>
-        account ? this.queries.mailboxes(account.pubkey) : of(undefined),
+        account ? this.events.mailboxes(account.pubkey) : of(undefined),
       ),
     );
     this.publishRelays = combineLatest([
@@ -134,9 +133,6 @@ export default class NostrArticlesPlugin extends Plugin {
         this.accounts.setActive(data.active);
       } catch (err) {}
 
-    // Start loaders
-    this.loaders.start();
-
     // Start the plugin lifecycle
     this.lifecycle();
 
@@ -157,9 +153,6 @@ export default class NostrArticlesPlugin extends Plugin {
     // Stop all subscriptions
     for (const sub of this.cleanup) sub.unsubscribe();
     this.cleanup = [];
-
-    // Stop loaders
-    this.loaders.stop();
   }
 
   private setupGlobalCommands() {
@@ -232,13 +225,6 @@ export default class NostrArticlesPlugin extends Plugin {
     this.switchAccountCommands();
     this.lifecycleUserNotify();
 
-    // Set loaders lookup relays when they change
-    this.cleanup.push(
-      this.lookupRelays.subscribe((relays) =>
-        this.loaders.setLookupRelays(relays),
-      ),
-    );
-
     // Load profiles for all accounts
     this.cleanup.push(
       combineLatest([this.accounts.accounts$, this.publishRelays]).subscribe(
@@ -246,21 +232,27 @@ export default class NostrArticlesPlugin extends Plugin {
           for (const account of accounts) {
             console.log(`Loading events for ${account.pubkey}`);
 
-            this.loaders.replaceable.next({
-              pubkey: account.pubkey,
-              kind: kinds.Metadata,
-              relays,
-            });
-            this.loaders.replaceable.next({
-              pubkey: account.pubkey,
-              kind: kinds.RelayList,
-              relays,
-            });
-            this.loaders.replaceable.next({
-              pubkey: account.pubkey,
-              kind: BLOSSOM_SERVER_LIST_KIND,
-              relays,
-            });
+            this.loaders
+              .address({
+                pubkey: account.pubkey,
+                kind: kinds.Metadata,
+                relays,
+              })
+              .subscribe();
+            this.loaders
+              .address({
+                pubkey: account.pubkey,
+                kind: kinds.RelayList,
+                relays,
+              })
+              .subscribe();
+            this.loaders
+              .address({
+                pubkey: account.pubkey,
+                kind: BLOSSOM_SERVER_LIST_KIND,
+                relays,
+              })
+              .subscribe();
           }
         },
       ),
@@ -294,10 +286,10 @@ export default class NostrArticlesPlugin extends Plugin {
           // If the file is published as an article try to load it
           if (pointer) {
             const relays = await firstValueFrom(this.publishRelays);
-            this.loaders.replaceable.next({
+            this.loaders.address({
               ...pointer,
               relays,
-            });
+            }).subscribe()
           }
         }
       }),
