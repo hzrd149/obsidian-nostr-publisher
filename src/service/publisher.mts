@@ -62,7 +62,7 @@ export default class Publisher {
   ) {
     let content = await this.app.vault.read(file);
 
-    const frontmatterRegex = /---\s*[\s\S]*?\s*---/g;
+    const frontmatterRegex = /^---[\s|\S]*\n---\n/;
     content = content.replace(frontmatterRegex, "").trim();
 
     content = this.replaceEmbedsWithBlobs(content, uploads);
