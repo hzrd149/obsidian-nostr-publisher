@@ -1,5 +1,11 @@
 # nostr-publisher
 
+## 0.2.2
+
+### Patch Changes
+
+- 8b12cb2: Fix frontmatter regexp breaking article if frontmatter had "---" in it
+
 ## 0.2.1
 
 ### Patch Changes
