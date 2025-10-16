@@ -1,12 +1,42 @@
+import { AccountManager } from "applesauce-accounts";
+import { registerCommonAccountTypes } from "applesauce-accounts/accounts";
+import { ActionHub } from "applesauce-actions";
+import {
+  AddBlossomServer,
+  RemoveBlossomServer,
+  SetDefaultBlossomServer,
+} from "applesauce-actions/actions/blossom";
+import {
+  AddOutboxRelay,
+  RemoveOutboxRelay,
+} from "applesauce-actions/actions/mailboxes";
+import { EventStore } from "applesauce-core";
+import {
+  getDisplayName,
+  getProfileContent,
+  isSafeRelayURL,
+} from "applesauce-core/helpers";
+import { EventFactory } from "applesauce-factory";
+import { CacheRequest } from "applesauce-loaders";
+import {
+  createAddressLoader,
+  createEventLoader,
+} from "applesauce-loaders/loaders";
+import { onlyEvents, RelayPool } from "applesauce-relay";
+import { NostrConnectSigner } from "applesauce-signers/signers/nostr-connect-signer";
+import { Filter, kinds, nip19, NostrEvent } from "nostr-tools";
+import { App, Command, Notice, Plugin, PluginManifest } from "obsidian";
 import {
   BehaviorSubject,
   bufferTime,
   combineLatest,
   debounceTime,
+  EMPTY,
   filter,
   firstValueFrom,
   lastValueFrom,
   map,
+  merge,
   Observable,
   of,
   shareReplay,
@@ -15,35 +45,18 @@ import {
   switchMap,
   toArray,
 } from "rxjs";
-import { App, Command, Notice, Plugin, PluginManifest } from "obsidian";
-import { onlyEvents, RelayPool } from "applesauce-relay";
-import { AccountManager } from "applesauce-accounts";
-import { registerCommonAccountTypes } from "applesauce-accounts/accounts";
-import { NostrConnectSigner } from "applesauce-signers/signers/nostr-connect-signer";
-import {
-  BLOSSOM_SERVER_LIST_KIND,
-  getDisplayName,
-  getProfileContent,
-  isSafeRelayURL,
-} from "applesauce-core/helpers";
-import { EventStore } from "applesauce-core";
-import { EventFactory } from "applesauce-factory";
-import { ActionHub } from "applesauce-actions";
-import { Filter, kinds, nip19, NostrEvent } from "nostr-tools";
 
+import DownloadArticleModal from "./src/components/DownloadArticleModal.mjs";
+import NostrConnectModal from "./src/components/NostrConnectModal.mjs";
 import PublishModal from "./src/components/PublishModal.mjs";
-import { NostrWriterSettingTab } from "./src/views/SettingsView.mjs";
+import { UserSearchModal } from "./src/components/UserSearchModal.mjs";
+import { DEFAULT_PLUGIN_RELAYS } from "./src/const.mjs";
 import NostrPluginData, {
   TNostrPluginData,
 } from "./src/schema/plugin-data.mjs";
-import NostrLoaders from "./src/service/loaders.mjs";
-import { DEFAULT_PLUGIN_RELAYS } from "./src/const.mjs";
-import NostrConnectModal from "./src/components/NostrConnectModal.mjs";
-import Publisher from "./src/service/publisher.mjs";
 import Downloader from "./src/service/downloader.mjs";
-import { UserSearchModal } from "./src/components/UserSearchModal.mjs";
-import DownloadArticleModal from "./src/components/DownloadArticleModal.mjs";
-import DownloadAllArticlesInputModal from "./src/components/DownloadAllArticlesInputModal.mjs";
+import Publisher from "./src/service/publisher.mjs";
+import { NostrWriterSettingTab } from "./src/views/SettingsView.mjs";
 
 export default class NostrArticlesPlugin extends Plugin {
   data = new BehaviorSubject<TNostrPluginData>(NostrPluginData.parse({}));
@@ -53,21 +66,24 @@ export default class NostrArticlesPlugin extends Plugin {
 
   events = new EventStore();
 
-  factory = new EventFactory({ signer: this.accounts.signer });
+  factory = new EventFactory({
+    signer: this.accounts.signer,
+    client: { name: "Obsidian Nostr publisher" },
+  });
   actions = new ActionHub(this.events, this.factory);
 
   private cleanup: Subscription[] = [];
 
   localRelay = new BehaviorSubject<string>("");
   pluginRelays = new BehaviorSubject<string[]>(DEFAULT_PLUGIN_RELAYS);
-  mediaServers = new BehaviorSubject<string[]>([]);
   lookupRelays = new BehaviorSubject<string[]>([]);
 
   /** Active users mailboxes */
   publishRelays: Observable<string[]>;
   mailboxes: Observable<{ inboxes: string[]; outboxes: string[] } | undefined>;
 
-  loaders = new NostrLoaders(this.pool, this.events, this.lookupRelays);
+  /** User's blossom servers from kind 10063 event */
+  blossomServers: Observable<URL[] | undefined>;
 
   /** Sub class for managing articles */
   publisher = new Publisher(this.app, this);
@@ -95,12 +111,38 @@ export default class NostrArticlesPlugin extends Plugin {
       lastValueFrom(this.pool.event(relays, event).pipe(toArray()));
     };
 
+    const cacheRequest: CacheRequest = (filters) => {
+      const localRelay = this.localRelay.value;
+      if (!localRelay) return EMPTY;
+      else return this.pool.request([localRelay], filters).pipe(onlyEvents());
+    };
+
+    // Create loaders and attach to event store
+    const addressLoader = createAddressLoader(this.pool, {
+      eventStore: this.events,
+      lookupRelays: this.lookupRelays,
+      cacheRequest,
+    });
+    const eventLoader = createEventLoader(this.pool, {
+      eventStore: this.events,
+      cacheRequest,
+    });
+
+    // Add loaders to event store
+    this.events.addressableLoader = addressLoader;
+    this.events.replaceableLoader = addressLoader;
+    this.events.eventLoader = eventLoader;
+
+    // @ts-ignore
+    window.nostr = this;
+
     // Setup computed values
     this.mailboxes = this.accounts.active$.pipe(
       switchMap((account) =>
         account ? this.events.mailboxes(account.pubkey) : of(undefined),
       ),
     );
+
     this.publishRelays = combineLatest([
       this.pluginRelays,
       this.localRelay,
@@ -114,6 +156,22 @@ export default class NostrArticlesPlugin extends Plugin {
       // share latest value and make sync
       shareReplay(1),
     );
+
+    // Setup blossom servers from kind 10063 events
+    this.blossomServers = combineLatest([
+      this.accounts.active$,
+      this.mailboxes,
+    ]).pipe(
+      switchMap(([account, mailboxes]) =>
+        account && mailboxes?.outboxes?.length
+          ? this.events.blossomServers({
+              pubkey: account.pubkey,
+              relays: mailboxes.outboxes,
+            })
+          : of(undefined),
+      ),
+      shareReplay(1),
+    );
   }
 
   async onload() {
@@ -125,7 +183,6 @@ export default class NostrArticlesPlugin extends Plugin {
     this.lookupRelays.next(data.lookupRelays);
     this.pluginRelays.next(data.pluginRelays);
     this.localRelay.next(data.localRelay ?? "");
-    this.mediaServers.next(data.mediaServers);
     // Load accounts
     this.accounts.fromJSON(data.accounts);
     if (data.active)
@@ -163,15 +220,6 @@ export default class NostrArticlesPlugin extends Plugin {
         await this.checkAndPublish();
       },
     });
-
-    // this.addCommand({
-    //   id: "open-article",
-    //   name: "Open article",
-    //   icon: "external-link",
-    //   callback: async () => {
-    //     await this.checkAndPublish();
-    //   },
-    // });
 
     this.addCommand({
       id: "show-relays",
@@ -227,35 +275,17 @@ export default class NostrArticlesPlugin extends Plugin {
 
     // Load profiles for all accounts
     this.cleanup.push(
-      combineLatest([this.accounts.accounts$, this.publishRelays]).subscribe(
-        ([accounts, relays]) => {
-          for (const account of accounts) {
-            console.log(`Loading events for ${account.pubkey}`);
-
-            this.loaders
-              .address({
-                pubkey: account.pubkey,
-                kind: kinds.Metadata,
-                relays,
-              })
-              .subscribe();
-            this.loaders
-              .address({
-                pubkey: account.pubkey,
-                kind: kinds.RelayList,
-                relays,
-              })
-              .subscribe();
-            this.loaders
-              .address({
-                pubkey: account.pubkey,
-                kind: BLOSSOM_SERVER_LIST_KIND,
-                relays,
-              })
-              .subscribe();
-          }
-        },
-      ),
+      this.accounts.accounts$
+        .pipe(
+          switchMap((accounts) =>
+            merge(
+              ...accounts.map((account) =>
+                this.events.replaceable(kinds.Metadata, account.pubkey),
+              ),
+            ),
+          ),
+        )
+        .subscribe(),
     );
 
     // Update account names when profiles are loaded
@@ -277,6 +307,22 @@ export default class NostrArticlesPlugin extends Plugin {
       }
     });
 
+    // Always fetch the user's blossom servers
+    this.cleanup.push(
+      this.blossomServers.subscribe((servers) => {
+        if (servers)
+          console.log("Found user's blossom servers", servers.join(", "));
+      }),
+    );
+
+    // Always fetch the user's mailboxes
+    this.cleanup.push(
+      this.mailboxes.subscribe((mailboxes) => {
+        if (mailboxes)
+          console.log("Found user's mailboxes", mailboxes.outboxes.join(", "));
+      }),
+    );
+
     // Load the article event from nostr when a file is opened
     this.registerEvent(
       this.app.workspace.on("file-open", async (file) => {
@@ -285,11 +331,7 @@ export default class NostrArticlesPlugin extends Plugin {
 
           // If the file is published as an article try to load it
           if (pointer) {
-            const relays = await firstValueFrom(this.publishRelays);
-            this.loaders.address({
-              ...pointer,
-              relays,
-            }).subscribe()
+            this.events.addressable(pointer).subscribe();
           }
         }
       }),
@@ -331,11 +373,6 @@ export default class NostrArticlesPlugin extends Plugin {
     this.cleanup.push(
       this.localRelay.subscribe((relay) =>
         this.updateData({ localRelay: relay }),
-      ),
-    );
-    this.cleanup.push(
-      this.mediaServers.subscribe((servers) =>
-        this.updateData({ mediaServers: servers }),
       ),
     );
   }
@@ -389,13 +426,6 @@ export default class NostrArticlesPlugin extends Plugin {
             `Switched to ${account.metadata?.name || account.pubkey.slice(0, 8)}`,
           );
         else new Notice("No nostr account");
-      }),
-    );
-
-    // Notify when mailboxes are loaded
-    this.cleanup.push(
-      this.mailboxes.subscribe((mailboxes) => {
-        if (mailboxes) new Notice(`Found ${mailboxes.inboxes.length} relays`);
       }),
     );
 
@@ -473,5 +503,195 @@ export default class NostrArticlesPlugin extends Plugin {
         }
       }).open();
     });
+  }
+
+  /**
+   * Add a blossom server to the user's kind 10063 event
+   */
+  async addBlossomServer(url: string): Promise<void> {
+    if (!this.accounts.active) {
+      throw new Error("No active account");
+    }
+
+    const mailboxes = await firstValueFrom(this.mailboxes);
+    if (!mailboxes?.outboxes?.length) {
+      throw new Error("No outbox relays available");
+    }
+
+    try {
+      const events = await firstValueFrom(
+        this.actions.exec(AddBlossomServer, url).pipe(toArray()),
+      );
+
+      // Publish the event to outbox relays
+      for (const event of events) {
+        await lastValueFrom(
+          this.pool.event(mailboxes.outboxes, event).pipe(toArray()),
+        );
+      }
+
+      new Notice(`Added ${url} to blossom servers`);
+    } catch (error) {
+      console.error("Failed to add blossom server:", error);
+      throw new Error(
+        `Failed to add blossom server: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Remove a blossom server from the user's kind 10063 event
+   */
+  async removeBlossomServer(server: URL): Promise<void> {
+    if (!this.accounts.active) {
+      throw new Error("No active account");
+    }
+
+    const mailboxes = await firstValueFrom(this.mailboxes);
+    if (!mailboxes?.outboxes?.length) {
+      throw new Error("No outbox relays available");
+    }
+
+    try {
+      const events = await firstValueFrom(
+        this.actions.exec(RemoveBlossomServer, server).pipe(toArray()),
+      );
+
+      // Publish the event to outbox relays
+      for (const event of events) {
+        await lastValueFrom(
+          this.pool.event(mailboxes.outboxes, event).pipe(toArray()),
+        );
+      }
+
+      new Notice(`Removed ${server.toString()} from blossom servers`);
+    } catch (error) {
+      console.error("Failed to remove blossom server:", error);
+      throw new Error(
+        `Failed to remove blossom server: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Set a blossom server as the default (move to top of list)
+   */
+  async setDefaultBlossomServer(server: URL): Promise<void> {
+    if (!this.accounts.active) {
+      throw new Error("No active account");
+    }
+
+    const mailboxes = await firstValueFrom(this.mailboxes);
+    if (!mailboxes?.outboxes?.length) {
+      throw new Error("No outbox relays available");
+    }
+
+    try {
+      const events = await firstValueFrom(
+        this.actions.exec(SetDefaultBlossomServer, server).pipe(toArray()),
+      );
+
+      // Publish the event to outbox relays
+      for (const event of events) {
+        await lastValueFrom(
+          this.pool.event(mailboxes.outboxes, event).pipe(toArray()),
+        );
+      }
+
+      new Notice(`Set ${server.toString()} as default blossom server`);
+    } catch (error) {
+      console.error("Failed to set default blossom server:", error);
+      throw new Error(
+        `Failed to set default blossom server: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Add an outbox relay to the user's kind 10002 relay list
+   */
+  async addOutboxRelay(relay: string): Promise<void> {
+    if (!this.accounts.active) {
+      throw new Error("No active account");
+    }
+
+    const mailboxes = await firstValueFrom(this.mailboxes);
+    if (!mailboxes?.outboxes?.length) {
+      throw new Error("No outbox relays available");
+    }
+
+    try {
+      const events = await firstValueFrom(
+        this.actions.exec(AddOutboxRelay, relay).pipe(toArray()),
+      );
+
+      // Publish the event to outbox relays
+      for (const event of events) {
+        await this.pool.publish(mailboxes.outboxes, event);
+      }
+
+      new Notice(`Added ${relay} to outbox relays`);
+    } catch (error) {
+      console.error("Failed to add outbox relay:", error);
+      throw new Error(
+        `Failed to add outbox relay: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Remove an outbox relay from the user's kind 10002 relay list
+   */
+  async removeOutboxRelay(relay: string): Promise<void> {
+    if (!this.accounts.active) {
+      throw new Error("No active account");
+    }
+
+    const mailboxes = await firstValueFrom(this.mailboxes);
+    if (!mailboxes?.outboxes?.length) {
+      throw new Error("No outbox relays available");
+    }
+
+    try {
+      const events = await firstValueFrom(
+        this.actions.exec(RemoveOutboxRelay, relay).pipe(toArray()),
+      );
+
+      // Publish the event to outbox relays
+      for (const event of events) {
+        await this.pool.publish(mailboxes.outboxes, event);
+      }
+
+      new Notice(`Removed ${relay} from outbox relays`);
+    } catch (error) {
+      console.error("Failed to remove outbox relay:", error);
+      throw new Error(
+        `Failed to remove outbox relay: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Add a lookup relay to the plugin settings
+   */
+  async addLookupRelay(relay: string): Promise<void> {
+    const currentRelays = this.lookupRelays.value;
+    if (currentRelays.includes(relay)) {
+      throw new Error("Relay already exists");
+    }
+
+    const newRelays = [...currentRelays, relay];
+    this.lookupRelays.next(newRelays);
+    new Notice(`Added ${relay} to lookup relays`);
+  }
+
+  /**
+   * Remove a lookup relay from the plugin settings
+   */
+  async removeLookupRelay(relay: string): Promise<void> {
+    const currentRelays = this.lookupRelays.value;
+    const newRelays = currentRelays.filter((r) => r !== relay);
+    this.lookupRelays.next(newRelays);
+    new Notice(`Removed ${relay} from lookup relays`);
   }
 }

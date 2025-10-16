@@ -36,9 +36,9 @@ WIP
 - [ ] Insert nostr user mentions
 - [ ] Insert nostr event link
 - [ ] Insert nostr article link
-- [ ] Convert obsidian links to naddr1 links when publishing
+- [x] Convert obsidian links to markdown links when publishing
 - [ ] Use https://graph.iris.to/ for local user search
-- [ ] Add vertex search dvm pubkey in settings ( Fallback to local relay search)
+- [ ] Add vertex search dvm pubkey in settings ( Fallback to local relay search )
 - [ ] Add option to configure zap splits
 - [ ] Add option to include a developer zap split in the article
 - [ ] Add option to set and upload banner image

@@ -1,6 +1,6 @@
 {
   "name": "nostr-publisher",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "private": true,
   "description": "Write nostr articles with obsidian",
   "main": "main.js",
@@ -27,33 +27,34 @@
   "license": "MIT",
   "dependencies": {
     "@noble/hashes": "^1.8.0",
-    "applesauce-accounts": "^2",
-    "applesauce-actions": "^2",
-    "applesauce-core": "^2",
-    "applesauce-factory": "^2",
-    "applesauce-loaders": "^2",
-    "applesauce-relay": "^2",
-    "applesauce-signers": "^2",
-    "blossom-client-sdk": "^4.0.0",
-    "nanoid": "^5.1.5",
-    "nostr-tools": "^2.15.0",
+    "applesauce-accounts": "^4.1.0",
+    "applesauce-actions": "^4.0.0",
+    "applesauce-core": "^4.1.0",
+    "applesauce-factory": "^4.0.0",
+    "applesauce-loaders": "^4.0.0",
+    "applesauce-relay": "^4.1.0",
+    "applesauce-signers": "^4.1.0",
+    "blossom-client-sdk": "^4.1.0",
+    "nanoid": "^5.1.6",
+    "nostr-tools": "^2.17.0",
     "qrcode-svg": "^1.1.0",
     "rxjs": "^7.8.2",
-    "zod": "^3.25.67"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.29.5",
+    "@changesets/cli": "^2.29.7",
     "@types/node": "^16.18.126",
     "@types/qrcode-svg": "^1.1.5",
-    "@types/react": "^18.3.23",
+    "@types/react": "^18.3.26",
     "@types/react-dom": "^18.3.7",
     "@types/uuid": "^9.0.8",
     "builtin-modules": "3.3.0",
     "esbuild": "0.17.3",
-    "obsidian": "^1.8.7",
-    "prettier": "^3.5.3",
+    "obsidian": "^1.10.0",
+    "prettier": "^3.6.2",
     "tslib": "2.4.0",
-    "typescript": "5.2.2"
+    "typescript": "5.2.2",
+    "vitest": "^3.2.4"
   },
-  "packageManager": "pnpm@9.15.6+sha512.139cab068fdf0b751268179ac5f909b5be72afb4a75c513d1905d151befc8977b593d3cf8671ed83d4d6637c5c94b98ffbce108125de4a5a27a31233601a99de"
+  "packageManager": "pnpm@9.15.6"
 }

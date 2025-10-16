@@ -1,6 +1,6 @@
 import { App, Modal, Notice, Setting, TextAreaComponent } from "obsidian";
-import { NostrConnectSigner, Permission } from "applesauce-signers";
-import { NostrConnectAccount } from "applesauce-accounts/accounts";
+import { NostrConnectSigner } from "applesauce-signers/signers/nostr-connect-signer";
+import { NostrConnectAccount } from "applesauce-accounts/accounts/nostr-connect-account";
 import QRCode from "qrcode-svg";
 
 import { DEFAULT_CONNECT_RELAY } from "../const.mjs";

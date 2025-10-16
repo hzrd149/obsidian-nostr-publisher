@@ -1,5 +1,13 @@
 # nostr-publisher
 
+## 0.3.0
+
+### Minor Changes
+
+- Correctly handle obsidian wiki links to images
+- Add outbox relay management
+- Add blossom server management
+
 ## 0.2.2
 
 ### Patch Changes

@@ -39,7 +39,11 @@ export default class PublishModal extends Modal {
       }),
     );
     let servers: string[] = [];
-    this.cleanup.push(this.plugin.mediaServers.subscribe((s) => (servers = s)));
+    this.cleanup.push(
+      this.plugin.blossomServers.subscribe((blossomServers) => {
+        servers = blossomServers?.map((url) => url.toString()) || [];
+      }),
+    );
 
     const frontmatter = this.app.metadataCache.getFileCache(this.file)
       ?.frontmatter as NostrFrontmatter | null;
@@ -265,6 +269,7 @@ export default class PublishModal extends Modal {
           return;
         }
 
+        let originalContent: string | undefined;
         try {
           publishButton.setDisabled(true).setButtonText("Saving changes...");
 
@@ -280,15 +285,30 @@ export default class PublishModal extends Modal {
           });
 
           const uploads = new Map<EmbedCache, BlobDescriptor>();
+          let processedContent: string | undefined;
           if (uploadMedia) {
             if (servers.length === 0) {
               new Notice("❌ No media servers found.");
               return;
             }
 
-            const embeds = this.plugin.publisher.getArticleEmbeddedMedia(
+            // Process content in memory to convert image wikilinks to markdown images
+            publishButton.setButtonText("Processing wikilinks...");
+            processedContent = await this.plugin.publisher.getProcessedContent(
               this.file,
             );
+
+            // Get embeds from both original file and processed content
+            const originalEmbeds =
+              this.plugin.publisher.getArticleEmbeddedMedia(this.file) || [];
+            const processedEmbeds =
+              this.plugin.publisher.getEmbeddedMediaFromContent(
+                processedContent,
+                this.file,
+              );
+
+            // Combine both sets of embeds
+            const embeds = [...originalEmbeds, ...processedEmbeds];
 
             if (embeds && embeds?.length > 0) {
               publishButton.setButtonText("Uploading media...");
@@ -312,6 +332,7 @@ export default class PublishModal extends Modal {
           const draft = await this.plugin.publisher.createArticleDraft(
             this.file,
             uploads,
+            processedContent,
           );
 
           publishButton.setButtonText("Signing...");
