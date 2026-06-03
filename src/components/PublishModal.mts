@@ -298,31 +298,39 @@ export default class PublishModal extends Modal {
               this.file,
             );
 
-            // Get embeds from both original file and processed content
-            const originalEmbeds =
-              this.plugin.publisher.getArticleEmbeddedMedia(this.file) || [];
-            const processedEmbeds =
+            // getProcessedContent has already converted every image wikilink
+            // to markdown, so the embeds detected in the processed content cover
+            // all media and their offsets line up with the content we replace
+            // against. (Combining these with the original-file embeds would
+            // apply original-file offsets to the processed string, duplicating
+            // images and corrupting the surrounding text.)
+            const embeds =
               this.plugin.publisher.getEmbeddedMediaFromContent(
                 processedContent,
                 this.file,
               );
 
-            // Combine both sets of embeds
-            const embeds = [...originalEmbeds, ...processedEmbeds];
-
             if (embeds && embeds?.length > 0) {
               publishButton.setButtonText("Uploading media...");
 
-              for (const media of embeds) {
-                new Notice(
-                  `Uploading ${media.link} to ${servers.length} servers...`,
-                );
+              // Cache uploads by link so an image used more than once is only
+              // uploaded a single time.
+              const blobByLink = new Map<string, BlobDescriptor>();
 
-                const blob = await this.plugin.publisher.uploadMediaEmbed(
-                  this.file,
-                  media,
-                  servers,
-                );
+              for (const media of embeds) {
+                let blob = blobByLink.get(media.link);
+                if (!blob) {
+                  new Notice(
+                    `Uploading ${media.link} to ${servers.length} servers...`,
+                  );
+
+                  blob = await this.plugin.publisher.uploadMediaEmbed(
+                    this.file,
+                    media,
+                    servers,
+                  );
+                  blobByLink.set(media.link, blob);
+                }
 
                 uploads.set(media, blob);
               }

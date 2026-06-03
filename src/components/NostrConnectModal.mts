@@ -2,6 +2,7 @@ import { App, Modal, Notice, Setting, TextAreaComponent } from "obsidian";
 import { NostrConnectSigner } from "applesauce-signers/signers/nostr-connect-signer";
 import { NostrConnectAccount } from "applesauce-accounts/accounts/nostr-connect-account";
 import QRCode from "qrcode-svg";
+import { AUTH_EVENT_KIND } from "blossom-client-sdk";
 
 import { DEFAULT_CONNECT_RELAY } from "../const.mjs";
 import { kinds } from "nostr-tools";
@@ -108,6 +109,8 @@ export default class NostrConnectModal extends Modal {
       name: "Obsidian Nostr Article",
       permissions: NostrConnectSigner.buildSigningPermissions([
         kinds.LongFormArticle,
+        // kind 24242 — Blossom upload auth, needed to upload embedded media
+        AUTH_EVENT_KIND,
       ]),
     });
 
@@ -168,7 +171,13 @@ export default class NostrConnectModal extends Modal {
     this.contentEl.empty();
     this.contentEl.createEl("h5", { text: "Connecting..." });
 
-    const signer = await NostrConnectSigner.fromBunkerURI(uri);
+    const signer = await NostrConnectSigner.fromBunkerURI(uri, {
+      permissions: NostrConnectSigner.buildSigningPermissions([
+        kinds.LongFormArticle,
+        // kind 24242 — Blossom upload auth, needed to upload embedded media
+        AUTH_EVENT_KIND,
+      ]),
+    });
 
     const pubkey = await signer.getPublicKey();
     const account = new NostrConnectAccount<{ name?: string }>(pubkey, signer);

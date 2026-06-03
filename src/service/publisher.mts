@@ -2,15 +2,26 @@ import { includeSingletonTag } from "applesauce-factory/operations";
 import { setContent } from "applesauce-factory/operations/content";
 import { includeHashtags } from "applesauce-factory/operations/hashtags";
 import { PublishResponse } from "applesauce-relay";
-import { BlobDescriptor, BlossomClient } from "blossom-client-sdk";
-import { multiServerUpload } from "blossom-client-sdk/actions/multi-server";
+import {
+  BlobDescriptor,
+  BlossomClient,
+  encodeAuthorizationHeader,
+  getBlobSha256,
+} from "blossom-client-sdk";
 import { EventTemplate, kinds, NostrEvent, UnsignedEvent } from "nostr-tools";
 import { AddressPointer } from "nostr-tools/nip19";
-import { App, EmbedCache, TFile, getLinkpath, parseLinktext } from "obsidian";
+import {
+  App,
+  EmbedCache,
+  TFile,
+  getLinkpath,
+  parseLinktext,
+  requestUrl,
+} from "obsidian";
 import { firstValueFrom, lastValueFrom, toArray } from "rxjs";
 
 import NostrArticlesPlugin from "../../main.mjs";
-import { UPLOAD_MEDIA_EXT } from "../const.mjs";
+import { MIME_TYPES, UPLOAD_MEDIA_EXT } from "../const.mjs";
 import { normalizePubkey } from "../helpers/nip19.mjs";
 import { NostrFrontmatter } from "../schema/frontmatter.mjs";
 
@@ -278,25 +289,49 @@ export default class Publisher {
 
     const buffer = await this.app.vault.readBinary(file);
     const blob = new Blob([buffer]);
+    const sha256 = await getBlobSha256(blob);
+    const contentType = MIME_TYPES[file.extension.toLowerCase()];
 
-    const uploads = await multiServerUpload(servers, blob, {
-      // explicitly disable any media modifications
-      isMedia: false,
-      onAuth: async (_server, sha256) => {
-        return await BlossomClient.createUploadAuth(
-          async (draft) => this.plugin.accounts.signer.signEvent(draft),
-          sha256,
-        );
-      },
-    });
+    // Create a single upload auth event; it is bound to the blob hash (the "x"
+    // tag) so it can be reused across every server.
+    const auth = await BlossomClient.createUploadAuth(
+      async (draft) => this.plugin.accounts.signer.signEvent(draft),
+      sha256,
+    );
+    const authorization = encodeAuthorizationHeader(auth);
 
-    // return the first upload that is successful
+    // Upload via Obsidian's requestUrl rather than the SDK's fetch-based
+    // multiServerUpload: requestUrl issues the request from the Node side and
+    // is not subject to the browser CORS policy that blocks app://obsidian.md.
+    const errors: string[] = [];
     for (const server of servers) {
-      const upload = uploads.get(server);
-      if (upload) return upload;
+      try {
+        const url = new URL("/upload", server).toString();
+        const headers: Record<string, string> = {
+          "X-SHA-256": sha256,
+          Authorization: authorization,
+        };
+        if (contentType) headers["Content-Type"] = contentType;
+
+        const response = await requestUrl({
+          url,
+          method: "PUT",
+          body: buffer,
+          headers,
+          throw: false,
+        });
+
+        if (response.status >= 200 && response.status < 300) {
+          return response.json as BlobDescriptor;
+        }
+
+        errors.push(`${server}: ${response.status} ${response.text}`);
+      } catch (err) {
+        errors.push(`${server}: ${err instanceof Error ? err.message : err}`);
+      }
     }
 
-    throw new Error("Failed to upload media");
+    throw new Error(`Failed to upload media. ${errors.join("; ")}`);
   }
 
   replaceEmbedsWithBlobs(
