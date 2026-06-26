@@ -7,9 +7,14 @@ import {
 
 export const DEFAULT_PLUGIN_RELAYS = [].map(normalizeURL);
 
-export const DEFAULT_LOOKUP_RELAYS = ["wss://purplepag.es", 'wss://index.hzrd149.com'].map(normalizeURL);
+export const DEFAULT_LOOKUP_RELAYS = [
+  "wss://purplepag.es",
+  "wss://index.hzrd149.com",
+].map(normalizeURL);
 
-export const DEFAULT_CONNECT_RELAY = normalizeURL("wss://relay.nsec.app");
+export const DEFAULT_CONNECT_RELAY = normalizeURL(
+  "wss://bucket.coracle.social/",
+);
 
 export const UPLOAD_MEDIA_EXT = [...IMAGE_EXT, ...VIDEO_EXT, ...AUDIO_EXT];
 

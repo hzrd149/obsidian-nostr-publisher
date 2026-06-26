@@ -304,11 +304,10 @@ export default class PublishModal extends Modal {
             // against. (Combining these with the original-file embeds would
             // apply original-file offsets to the processed string, duplicating
             // images and corrupting the surrounding text.)
-            const embeds =
-              this.plugin.publisher.getEmbeddedMediaFromContent(
-                processedContent,
-                this.file,
-              );
+            const embeds = this.plugin.publisher.getEmbeddedMediaFromContent(
+              processedContent,
+              this.file,
+            );
 
             if (embeds && embeds?.length > 0) {
               publishButton.setButtonText("Uploading media...");

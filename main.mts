@@ -1,6 +1,6 @@
 import { AccountManager } from "applesauce-accounts";
 import { registerCommonAccountTypes } from "applesauce-accounts/accounts";
-import { ActionHub } from "applesauce-actions";
+import { ActionRunner } from "applesauce-actions";
 import {
   AddBlossomServer,
   RemoveBlossomServer,
@@ -11,18 +11,12 @@ import {
   RemoveOutboxRelay,
 } from "applesauce-actions/actions/mailboxes";
 import { EventStore } from "applesauce-core";
-import {
-  getDisplayName,
-  getProfileContent,
-  isSafeRelayURL,
-} from "applesauce-core/helpers";
-import { EventFactory } from "applesauce-factory";
+import { isSafeRelayURL } from "applesauce-core/helpers";
+import { FiltersModel, ReplaceableModel } from "applesauce-core/models";
+import { castUser } from "applesauce-common/casts";
 import { CacheRequest } from "applesauce-loaders";
-import {
-  createAddressLoader,
-  createEventLoader,
-} from "applesauce-loaders/loaders";
-import { onlyEvents, RelayPool } from "applesauce-relay";
+import { createEventLoaderForStore } from "applesauce-loaders/loaders";
+import { RelayPool } from "applesauce-relay";
 import { NostrConnectSigner } from "applesauce-signers/signers/nostr-connect-signer";
 import { Filter, kinds, nip19, NostrEvent } from "nostr-tools";
 import { App, Command, Notice, Plugin, PluginManifest } from "obsidian";
@@ -66,11 +60,7 @@ export default class NostrArticlesPlugin extends Plugin {
 
   events = new EventStore();
 
-  factory = new EventFactory({
-    signer: this.accounts.signer,
-    client: { name: "Obsidian Nostr publisher" },
-  });
-  actions = new ActionHub(this.events, this.factory);
+  actions = new ActionRunner(this.events, this.accounts.signer);
 
   private cleanup: Subscription[] = [];
 
@@ -101,7 +91,7 @@ export default class NostrArticlesPlugin extends Plugin {
     NostrConnectSigner.subscriptionMethod = (
       relays: string[],
       filters: Filter[],
-    ) => this.pool.req(relays, filters).pipe(onlyEvents());
+    ) => this.pool.subscription(relays, filters);
 
     // Setup default publish method
     NostrConnectSigner.publishMethod = async (
@@ -114,33 +104,32 @@ export default class NostrArticlesPlugin extends Plugin {
     const cacheRequest: CacheRequest = (filters) => {
       const localRelay = this.localRelay.value;
       if (!localRelay) return EMPTY;
-      else return this.pool.request([localRelay], filters).pipe(onlyEvents());
+      else return this.pool.request([localRelay], filters);
     };
 
-    // Create loaders and attach to event store
-    const addressLoader = createAddressLoader(this.pool, {
-      eventStore: this.events,
+    // Create the unified event loader and attach it to the event store
+    createEventLoaderForStore(this.events, this.pool, {
       lookupRelays: this.lookupRelays,
       cacheRequest,
     });
-    const eventLoader = createEventLoader(this.pool, {
-      eventStore: this.events,
-      cacheRequest,
-    });
-
-    // Add loaders to event store
-    this.events.addressableLoader = addressLoader;
-    this.events.replaceableLoader = addressLoader;
-    this.events.eventLoader = eventLoader;
 
     // @ts-ignore
     window.nostr = this;
 
-    // Setup computed values
-    this.mailboxes = this.accounts.active$.pipe(
-      switchMap((account) =>
-        account ? this.events.mailboxes(account.pubkey) : of(undefined),
+    // Reactive view of the active user via the applesauce cast system. The
+    // User cast exposes the user's whole NIP graph (mailboxes, blossom servers,
+    // profile, ...) as outbox-aware chainable observables.
+    const activeUser$ = this.accounts.active$.pipe(
+      map((account) =>
+        account ? castUser(account.pubkey, this.events) : undefined,
       ),
+      shareReplay(1),
+    );
+
+    // Setup computed values
+    this.mailboxes = activeUser$.pipe(
+      switchMap((user) => (user ? user.mailboxes$ : of(undefined))),
+      shareReplay(1),
     );
 
     this.publishRelays = combineLatest([
@@ -157,19 +146,10 @@ export default class NostrArticlesPlugin extends Plugin {
       shareReplay(1),
     );
 
-    // Setup blossom servers from kind 10063 events
-    this.blossomServers = combineLatest([
-      this.accounts.active$,
-      this.mailboxes,
-    ]).pipe(
-      switchMap(([account, mailboxes]) =>
-        account && mailboxes?.outboxes?.length
-          ? this.events.blossomServers({
-              pubkey: account.pubkey,
-              relays: mailboxes.outboxes,
-            })
-          : of(undefined),
-      ),
+    // The user's blossom servers (kind 10063). The cast resolves these from
+    // the user's outbox relays automatically.
+    this.blossomServers = activeUser$.pipe(
+      switchMap((user) => (user ? user.blossomServers$ : of(undefined))),
       shareReplay(1),
     );
   }
@@ -273,39 +253,34 @@ export default class NostrArticlesPlugin extends Plugin {
     this.switchAccountCommands();
     this.lifecycleUserNotify();
 
-    // Load profiles for all accounts
+    // Load each account's profile and keep its display name in sync using the
+    // User cast. Subscribing to profile$ both triggers the loader and yields
+    // the parsed Profile reactively, so there's no need to watch raw kind 0
+    // events separately.
     this.cleanup.push(
       this.accounts.accounts$
         .pipe(
           switchMap((accounts) =>
             merge(
               ...accounts.map((account) =>
-                this.events.replaceable(kinds.Metadata, account.pubkey),
+                castUser(account.pubkey, this.events).profile$.pipe(
+                  map((profile) => ({ account, profile })),
+                ),
               ),
             ),
           ),
         )
-        .subscribe(),
+        .subscribe(({ account, profile }) => {
+          const name = profile?.displayName;
+          if (name && account.metadata?.name !== name) {
+            console.log(`Updating account name for ${account.pubkey}`, name);
+            account.metadata = { name };
+
+            // Save accounts
+            this.updateData({ accounts: this.accounts.toJSON() });
+          }
+        }),
     );
-
-    // Update account names when profiles are loaded
-    this.events.filters({ kinds: [kinds.Metadata] }).subscribe((event) => {
-      const account = this.accounts.getAccountForPubkey(event.pubkey);
-
-      if (account) {
-        try {
-          const profile = getProfileContent(event);
-
-          const name = getDisplayName(profile);
-          console.log(`Updating account name for ${account.pubkey}`, name);
-
-          account.metadata = { name };
-
-          // Save accounts
-          this.updateData({ accounts: this.accounts.toJSON() });
-        } catch (error) {}
-      }
-    });
 
     // Always fetch the user's blossom servers
     this.cleanup.push(
@@ -331,7 +306,7 @@ export default class NostrArticlesPlugin extends Plugin {
 
           // If the file is published as an article try to load it
           if (pointer) {
-            this.events.addressable(pointer).subscribe();
+            this.events.model(ReplaceableModel, pointer).subscribe();
           }
         }
       }),
@@ -435,7 +410,7 @@ export default class NostrArticlesPlugin extends Plugin {
         .pipe(
           filter((a) => a !== undefined),
           switchMap((account) =>
-            this.events.filters({
+            this.events.model(FiltersModel, {
               authors: [account!.pubkey],
               kinds: [kinds.LongFormArticle],
             }),

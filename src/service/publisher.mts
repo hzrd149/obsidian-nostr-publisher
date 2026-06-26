@@ -1,6 +1,4 @@
-import { includeSingletonTag } from "applesauce-factory/operations";
-import { setContent } from "applesauce-factory/operations/content";
-import { includeHashtags } from "applesauce-factory/operations/hashtags";
+import { EventFactory } from "applesauce-core/factories";
 import { PublishResponse } from "applesauce-relay";
 import {
   BlobDescriptor,
@@ -8,7 +6,7 @@ import {
   encodeAuthorizationHeader,
   getBlobSha256,
 } from "blossom-client-sdk";
-import { EventTemplate, kinds, NostrEvent, UnsignedEvent } from "nostr-tools";
+import { kinds, NostrEvent, UnsignedEvent } from "nostr-tools";
 import { AddressPointer } from "nostr-tools/nip19";
 import {
   App,
@@ -222,7 +220,6 @@ export default class Publisher {
     if (!identifier || !pubkey)
       throw new Error("File missing identifier or pubkey");
 
-    let draft: EventTemplate;
     const content = await this.getArticleContent(
       file,
       uploads,
@@ -235,32 +232,49 @@ export default class Publisher {
       identifier,
     );
 
-    const operations = [
-      setContent(content),
-      title ? includeSingletonTag(["title", title], true) : undefined,
-      summary ? includeSingletonTag(["summary", summary], true) : undefined,
-      image ? includeSingletonTag(["image", image], true) : undefined,
-      tags ? includeHashtags(tags) : undefined,
-      published_at
-        ? includeSingletonTag(["published_at", String(published_at)], true)
-        : undefined,
-    ];
+    // applesauce v6 uses the Promise-based fluent EventFactory. There is no
+    // dedicated article factory, so build/modify the kind 30023 event with the
+    // base factory: `fromEvent` to update an existing article (refreshes
+    // created_at) or `fromKind` for a new one.
+    const base = existing
+      ? EventFactory.fromEvent(existing)
+      : EventFactory.fromKind(kinds.LongFormArticle);
 
-    if (existing)
-      draft = await this.plugin.factory.modify(existing, ...operations);
-    else
-      draft = await this.plugin.factory.build(
-        { kind: kinds.LongFormArticle },
-        includeSingletonTag(["d", identifier]),
-        ...operations,
-      );
+    // Tags we fully own and re-derive from the note's frontmatter on every
+    // publish. Everything else on an existing event is preserved.
+    const managed = new Set([
+      "d",
+      "title",
+      "summary",
+      "image",
+      "published_at",
+      "t",
+      "client",
+    ]);
 
-    return await this.plugin.factory.stamp(draft);
+    const draft = await base
+      .content(content)
+      .modifyPublicTags((current) => {
+        const next = current.filter((tag) => !managed.has(tag[0]));
+
+        next.push(["d", identifier]);
+        if (title) next.push(["title", title]);
+        if (summary) next.push(["summary", summary]);
+        if (image) next.push(["image", image]);
+        if (published_at) next.push(["published_at", String(published_at)]);
+        for (const tag of tags ?? []) next.push(["t", tag]);
+        next.push(["client", "Obsidian Nostr publisher"]);
+
+        return next;
+      })
+      .stamp(this.plugin.accounts.signer);
+
+    return draft;
   }
 
   /** Signs an article draft */
   async signArticleDraft(draft: UnsignedEvent): Promise<NostrEvent> {
-    return await this.plugin.factory.sign(draft);
+    return await this.plugin.accounts.signer.signEvent(draft);
   }
 
   /** Publishes an article to the outbox relays */

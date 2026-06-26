@@ -1,4 +1,4 @@
-import { completeOnEose, RelayGroup } from "applesauce-relay";
+import { RelayGroup } from "applesauce-relay";
 import { lastValueFrom, takeUntil, timer, toArray } from "rxjs";
 import { Filter } from "nostr-tools";
 
@@ -16,11 +16,10 @@ export function fetchLatestEvents(
 ) {
   // Wait for the observable to complete
   return lastValueFrom(
-    // Create a REQ subscription observable
-    group.req(filters).pipe(
-      // Complete when EOSE is received
-      completeOnEose(),
-      // Timeout after 10 seconds
+    // Request events from the relay group. `request` emits NostrEvents and
+    // completes on its own (first relay EOSE + grace period, or all EOSE).
+    group.request(filters).pipe(
+      // Hard timeout after 10 seconds
       takeUntil(timer(timeout)),
       // Collect all events into an array
       toArray(),
